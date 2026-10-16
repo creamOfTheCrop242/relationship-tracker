@@ -1,0 +1,10 @@
+{
+  "name": "Relationship Tracker",
+  "short_name": "Relationship Tracker",
+  "description": "A private relationship journal for noticing patterns and taking thoughtful action.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F7F1E8",
+  "theme_color": "#F7F1E8",
+  "icons": []
+}
