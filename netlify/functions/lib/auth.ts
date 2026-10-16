@@ -21,7 +21,19 @@ function requiredEnv(name: string): string {
 }
 
 export function appUrl(request: Request): string {
-  return process.env.PUBLIC_APP_URL ?? new URL(request.url).origin
+  const requestUrl = new URL(request.url)
+  if (requestUrl.hostname === 'localhost' || requestUrl.hostname === '127.0.0.1') {
+    return requestUrl.origin
+  }
+  return process.env.PUBLIC_APP_URL ?? requestUrl.origin
+}
+
+function callbackUrl(request: Request, path: string, configuredUrl: string | undefined): string {
+  const requestUrl = new URL(request.url)
+  if (requestUrl.hostname === 'localhost' || requestUrl.hostname === '127.0.0.1') {
+    return `${requestUrl.origin}${path}`
+  }
+  return configuredUrl ?? `${appUrl(request)}${path}`
 }
 
 export function isSecure(request: Request): boolean {
@@ -99,7 +111,7 @@ export function googleConfig(request: Request) {
   return {
     clientId: requiredEnv('GOOGLE_CLIENT_ID'),
     clientSecret: requiredEnv('GOOGLE_CLIENT_SECRET'),
-    callbackUrl: process.env.GOOGLE_CALLBACK_URL ?? `${appUrl(request)}/api/auth/google/callback`,
+    callbackUrl: callbackUrl(request, '/api/auth/google/callback', process.env.GOOGLE_CALLBACK_URL),
   }
 }
 
@@ -109,7 +121,7 @@ export function appleConfig(request: Request) {
     teamId: requiredEnv('APPLE_TEAM_ID'),
     keyId: requiredEnv('APPLE_KEY_ID'),
     privateKey: requiredEnv('APPLE_PRIVATE_KEY').replace(/\\n/g, '\n'),
-    callbackUrl: process.env.APPLE_CALLBACK_URL ?? `${appUrl(request)}/api/auth/apple/callback`,
+    callbackUrl: callbackUrl(request, '/api/auth/apple/callback', process.env.APPLE_CALLBACK_URL),
   }
 }
 
