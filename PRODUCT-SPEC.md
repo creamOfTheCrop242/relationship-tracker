@@ -31,7 +31,7 @@ Score cards should use a calm information treatment rather than aggressive red o
 ## Initial product decisions
 
 - The app is private to one user initially.
-- The user signs in with Google through Netlify Identity.
+- The user signs in with Google or Apple through custom OAuth handled by Netlify Functions.
 - All entries are owned by the authenticated user.
 - The partner does not need an account in the first version.
 - The partner can be represented as “Partner.”
@@ -40,6 +40,38 @@ Score cards should use a calm information treatment rather than aggressive red o
 - The user’s local timezone controls dates and scheduled analysis.
 - The app is mobile-first and installable as a Progressive Web App.
 - The user can export or delete their data.
+
+## Authentication architecture
+
+The app will not use Netlify Identity for the initial authentication flow. Netlify Identity’s default provider branding is not the desired app experience, and custom Identity OAuth is not part of the current cost plan.
+
+Instead, the app will use a custom OAuth flow modeled after the Chess Sagas implementation:
+
+```text
+React app
+  → Netlify Function
+    → Google or Apple OAuth
+      → Netlify Database
+        → Secure session cookie
+```
+
+Netlify Database remains the application database and is independent of the authentication provider.
+
+The authentication Functions will:
+
+- Generate Google and Apple authorization URLs.
+- Use unpredictable state values to protect against CSRF.
+- Handle OAuth callbacks.
+- Exchange authorization codes for provider tokens.
+- Validate provider identity claims.
+- Create or find the application user.
+- Store provider identifiers separately from the application user ID.
+- Create and revoke secure server-side sessions.
+- Protect all authenticated database operations.
+
+The application should keep its own user record and ownership IDs so a future provider change does not require rebuilding event, needs, summary, or task data.
+
+Google OAuth credentials are required. Apple web authentication requires an Apple Developer account, a Services ID, a private key, and HTTPS callback URLs.
 
 ## Event tracking
 
@@ -429,9 +461,9 @@ Finalize the event categories, need fields, desired cadence behavior, score desi
 
 Set up React, TypeScript, Vite, the PWA structure, GitHub, Netlify deployment, and the base application layout.
 
-### Phase 2: Authentication
+### Phase 2: Custom authentication
 
-Set up Netlify Identity, Google login, protected routes, session handling, and single-user access.
+Set up custom Google and Apple OAuth through Netlify Functions, secure session cookies, provider identity mapping, protected routes, session handling, and single-user access.
 
 ### Phase 3: Database and backend
 
