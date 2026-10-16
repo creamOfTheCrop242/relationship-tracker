@@ -1,0 +1,41 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+
+[[redirects]]
+  from = "/api/auth/google/start"
+  to = "/.netlify/functions/auth-start?provider=google"
+  status = 302
+
+[[redirects]]
+  from = "/api/auth/apple/start"
+  to = "/.netlify/functions/auth-start?provider=apple"
+  status = 302
+
+[[redirects]]
+  from = "/api/auth/google/callback"
+  to = "/.netlify/functions/auth-google-callback"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/apple/callback"
+  to = "/.netlify/functions/auth-apple-callback"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/me"
+  to = "/.netlify/functions/auth-me"
+  status = 200
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

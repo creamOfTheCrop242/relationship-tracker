@@ -21,6 +21,21 @@ body { margin: 0; min-width: 320px; background: var(--cream); }
 button { font: inherit; cursor: pointer; }
 
 .app-shell { max-width: 1080px; margin: 0 auto; padding: 28px 32px 72px; }
+.auth-shell { display: grid; place-items: center; min-height: 100svh; padding: 24px; }
+.auth-card { width: min(100%, 460px); padding: 42px; border: 1px solid var(--line); border-radius: 28px; background: var(--card); box-shadow: 0 22px 60px rgba(41, 38, 34, .08); text-align: center; }
+.auth-card .brand-mark { margin: 0 auto 28px; }
+.auth-card h1 { margin: 0 0 14px; font-size: clamp(36px, 8vw, 54px); letter-spacing: -.06em; }
+.auth-intro { max-width: 340px; margin: 0 auto 28px; color: var(--muted); line-height: 1.6; }
+.auth-actions { display: grid; gap: 12px; }
+.auth-provider-button { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 52px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--charcoal); font-weight: 750; }
+.auth-provider-button:hover { border-color: var(--terracotta); box-shadow: 0 6px 16px rgba(224, 111, 82, .12); }
+.dark-provider { border-color: var(--charcoal); background: var(--charcoal); color: white; }
+.dark-provider:hover { border-color: #45413d; background: #45413d; }
+.provider-mark { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; font-size: 14px; font-weight: 850; }
+.google-mark { color: #4285f4; background: #f0f5ff; }
+.apple-mark { color: white; background: #000; font-size: 11px; }
+.auth-footnote { margin: 24px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+.auth-warning { margin: 0 auto 18px; padding: 11px 13px; border-radius: 12px; background: #fff5db; color: #70551b; font-size: 13px; }
 .topbar, .welcome-row, .reflection-heading, .section-heading, .need-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .topbar { margin-bottom: 72px; }
 .brand-mark { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: var(--terracotta); color: white; font-size: 25px; font-weight: 800; }
@@ -29,6 +44,7 @@ button { font: inherit; cursor: pointer; }
 .topbar-actions { display: flex; gap: 8px; }
 .icon-button { width: 40px; height: 40px; border: 1px solid var(--line); border-radius: 50%; background: transparent; color: var(--muted); }
 .icon-button:hover, .text-button:hover { color: var(--terracotta); }
+.avatar-button { width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--terracotta); color: #fff; font-weight: 800; }
 .eyebrow { margin: 0 0 8px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: .14em; }
 h2, h3, p { margin-top: 0; }
 h2 { margin-bottom: 10px; font-size: clamp(25px, 4vw, 36px); letter-spacing: -.04em; line-height: 1.1; }
