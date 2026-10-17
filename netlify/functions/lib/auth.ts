@@ -67,6 +67,18 @@ export function randomState(): string {
 }
 
 export async function createSession(user: SessionUser): Promise<string> {
+  try {
+    return await createDatabaseSession(user)
+  } catch {
+    return new SignJWT({ ...user })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setIssuedAt()
+      .setExpirationTime(`${SESSION_MAX_AGE}s`)
+      .sign(new TextEncoder().encode(requiredEnv('SESSION_SECRET')))
+  }
+}
+
+async function createDatabaseSession(user: SessionUser): Promise<string> {
   const existingUsers = await db.select().from(users).where(eq(users.email, user.email ?? '')).limit(1)
   const savedUser = existingUsers[0]
     ? (await db.update(users)
@@ -131,13 +143,31 @@ export async function getSession(request: Request): Promise<SessionUser | null> 
       pictureUrl: session.pictureUrl,
     }
   } catch {
-    return null
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(requiredEnv('SESSION_SECRET')))
+      if (payload.provider !== 'google' && payload.provider !== 'apple') return null
+      return {
+        provider: payload.provider,
+        providerSubject: String(payload.providerSubject),
+        email: typeof payload.email === 'string' ? payload.email : null,
+        name: typeof payload.name === 'string' ? payload.name : null,
+        pictureUrl: typeof payload.pictureUrl === 'string' ? payload.pictureUrl : null,
+      }
+    } catch {
+      return null
+    }
   }
 }
 
 export async function revokeSession(request: Request): Promise<void> {
   const token = cookieValue(request, SESSION_COOKIE)
-  if (token) await db.delete(sessions).where(eq(sessions.tokenHash, await hashToken(token)))
+  if (token) {
+    try {
+      await db.delete(sessions).where(eq(sessions.tokenHash, await hashToken(token)))
+    } catch {
+      // The signed-cookie fallback has no database row to revoke.
+    }
+  }
 }
 
 async function hashToken(value: string): Promise<string> {
