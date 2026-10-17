@@ -1,7 +1,7 @@
 import { eq } from 'drizzle-orm'
 import { SignJWT, importPKCS8, jwtVerify, createRemoteJWKSet } from 'jose'
 
-import { db } from '../../../db'
+import { getDb } from '../../../db'
 import { authAccounts, sessions, users } from '../../../db/schema'
 
 export type Provider = 'google' | 'apple'
@@ -79,6 +79,7 @@ export async function createSession(user: SessionUser): Promise<string> {
 }
 
 async function createDatabaseSession(user: SessionUser): Promise<string> {
+  const db = getDb()
   const existingUsers = await db.select().from(users).where(eq(users.email, user.email ?? '')).limit(1)
   const savedUser = existingUsers[0]
     ? (await db.update(users)
@@ -119,6 +120,7 @@ export async function getSession(request: Request): Promise<SessionUser | null> 
   const token = cookieValue(request, SESSION_COOKIE)
   if (!token) return null
   try {
+    const db = getDb()
     const rows = await db.select({
       provider: authAccounts.provider,
       providerSubject: authAccounts.providerSubject,
@@ -163,6 +165,7 @@ export async function revokeSession(request: Request): Promise<void> {
   const token = cookieValue(request, SESSION_COOKIE)
   if (token) {
     try {
+      const db = getDb()
       await db.delete(sessions).where(eq(sessions.tokenHash, await hashToken(token)))
     } catch {
       // The signed-cookie fallback has no database row to revoke.
