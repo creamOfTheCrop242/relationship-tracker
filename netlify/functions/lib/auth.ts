@@ -1,4 +1,8 @@
+import { eq } from 'drizzle-orm'
 import { SignJWT, importPKCS8, jwtVerify, createRemoteJWKSet } from 'jose'
+
+import { db } from '../../../db'
+import { authAccounts, sessions, users } from '../../../db/schema'
 
 export type Provider = 'google' | 'apple'
 
@@ -63,31 +67,82 @@ export function randomState(): string {
 }
 
 export async function createSession(user: SessionUser): Promise<string> {
-  const secret = new TextEncoder().encode(requiredEnv('SESSION_SECRET'))
-  return new SignJWT({ ...user })
-    .setProtectedHeader({ alg: 'HS256' })
-    .setIssuedAt()
-    .setExpirationTime(`${SESSION_MAX_AGE}s`)
-    .sign(secret)
+  const existingUsers = await db.select().from(users).where(eq(users.email, user.email ?? '')).limit(1)
+  const savedUser = existingUsers[0]
+    ? (await db.update(users)
+        .set({ displayName: user.name, avatarUrl: user.pictureUrl, updatedAt: new Date() })
+        .where(eq(users.id, existingUsers[0].id))
+        .returning())[0]
+    : (await db.insert(users).values({
+        email: user.email ?? `${user.providerSubject}@${user.provider}.invalid`,
+        displayName: user.name,
+        avatarUrl: user.pictureUrl,
+      }).returning())[0]
+
+  const existingAccounts = await db.select().from(authAccounts)
+    .where(eq(authAccounts.providerSubject, user.providerSubject)).limit(1)
+  if (existingAccounts[0]) {
+    await db.update(authAccounts)
+      .set({ userId: savedUser.id, email: user.email ?? existingAccounts[0].email })
+      .where(eq(authAccounts.id, existingAccounts[0].id))
+  } else {
+    await db.insert(authAccounts).values({
+      userId: savedUser.id,
+      provider: user.provider,
+      providerSubject: user.providerSubject,
+      email: user.email ?? savedUser.email,
+    })
+  }
+
+  const token = randomState()
+  await db.insert(sessions).values({
+    userId: savedUser.id,
+    tokenHash: await hashToken(token),
+    expiresAt: new Date(Date.now() + SESSION_MAX_AGE * 1000),
+  })
+  return token
 }
 
 export async function getSession(request: Request): Promise<SessionUser | null> {
   const token = cookieValue(request, SESSION_COOKIE)
   if (!token) return null
   try {
-    const secret = new TextEncoder().encode(requiredEnv('SESSION_SECRET'))
-    const { payload } = await jwtVerify(token, secret)
-    if (payload.provider !== 'google' && payload.provider !== 'apple') return null
+    const rows = await db.select({
+      provider: authAccounts.provider,
+      providerSubject: authAccounts.providerSubject,
+      email: users.email,
+      name: users.displayName,
+      pictureUrl: users.avatarUrl,
+      expiresAt: sessions.expiresAt,
+    })
+      .from(sessions)
+      .innerJoin(users, eq(sessions.userId, users.id))
+      .innerJoin(authAccounts, eq(authAccounts.userId, users.id))
+      .where(eq(sessions.tokenHash, await hashToken(token)))
+      .limit(1)
+    const session = rows[0]
+    if (!session || session.expiresAt.getTime() <= Date.now()) return null
+    if (session.provider !== 'google' && session.provider !== 'apple') return null
     return {
-      provider: payload.provider,
-      providerSubject: String(payload.providerSubject),
-      email: typeof payload.email === 'string' ? payload.email : null,
-      name: typeof payload.name === 'string' ? payload.name : null,
-      pictureUrl: typeof payload.pictureUrl === 'string' ? payload.pictureUrl : null,
+      provider: session.provider,
+      providerSubject: session.providerSubject,
+      email: session.email,
+      name: session.name,
+      pictureUrl: session.pictureUrl,
     }
   } catch {
     return null
   }
+}
+
+export async function revokeSession(request: Request): Promise<void> {
+  const token = cookieValue(request, SESSION_COOKIE)
+  if (token) await db.delete(sessions).where(eq(sessions.tokenHash, await hashToken(token)))
+}
+
+async function hashToken(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Buffer.from(digest).toString('base64url')
 }
 
 export function sessionCookie(token: string, request: Request): string {
