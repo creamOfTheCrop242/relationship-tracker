@@ -1,72 +1,51 @@
-# Custom OAuth setup
+# FastAPI authentication
 
-Phase 2 uses custom Google and Apple OAuth through Netlify Functions. Netlify Identity is not part of this flow, so provider credentials stay in server-side environment variables.
+Google and Apple OAuth are handled by the Heroku FastAPI backend. The browser uses same-origin `/api/auth/*` URLs on the frontend; Netlify proxies `/api/*` to Heroku. Keep callback URLs on the frontend origin so state and session cookies remain first-party. Do not point provider callbacks directly at Heroku when using the Netlify frontend.
 
-## Netlify environment variables
+## Heroku configuration
 
-Add these variables in the Netlify project settings. Do not put secrets in frontend code or commit a `.env` file.
+Set these server-side variables on `so-about-us`:
 
 ```text
-PUBLIC_APP_URL=https://your-site.netlify.app
-SESSION_SECRET=<long-random-secret>
-
+FRONTEND_URL=https://your-site.netlify.app
+DATABASE_URL=<provided by Heroku Postgres>
+SESSION_SECRET=<long random value>
 GOOGLE_CLIENT_ID=<Google web client ID>
 GOOGLE_CLIENT_SECRET=<Google web client secret>
 GOOGLE_CALLBACK_URL=https://your-site.netlify.app/api/auth/google/callback
-
 APPLE_CLIENT_ID=<Apple Services ID>
 APPLE_TEAM_ID=<Apple team ID>
-APPLE_KEY_ID=<Apple Sign in with Apple key ID>
-APPLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+APPLE_KEY_ID=<Apple key ID>
+APPLE_PRIVATE_KEY=<Apple private key PEM>
 APPLE_CALLBACK_URL=https://your-site.netlify.app/api/auth/apple/callback
 ```
 
-Generate a session secret locally with:
+Register the exact callback URLs with Google and Apple. For Google, also register the frontend origin. Apple requires an HTTPS domain, a Services ID, and Sign in with Apple enabled for its associated App ID. A provider with incomplete configuration returns 503 at its start endpoint.
 
-```bash
-openssl rand -base64 32
-```
-
-## Google
-
-Create a Google OAuth client with application type **Web application**.
-
-Add this authorized JavaScript origin:
-
-```text
-https://your-site.netlify.app
-```
-
-Add this authorized redirect URI:
-
-```text
-https://your-site.netlify.app/api/auth/google/callback
-```
-
-For local testing through Netlify Dev, use:
-
-```text
-http://localhost:8888
-http://localhost:8888/api/auth/google/callback
-```
-
-## Apple
-
-Create or use an Apple primary App ID with Sign in with Apple enabled. Create a web Services ID and configure it with:
-
-- `your-site.netlify.app` as a domain
-- `https://your-site.netlify.app/api/auth/apple/callback` as a return URL
-
-The Apple private key must remain server-side. The callback uses `form_post`, verifies the returned identity token against Apple’s signing keys, and creates a signed application session.
-
-Apple web authentication should be tested on the deployed HTTPS site. The local development callback may not work unless the local URL is accepted by the Apple configuration.
+Deploy the backend before publishing the frontend proxy changes. Existing Netlify sessions do not transfer; users must sign in again. The old Netlify database is not migrated by this change. No journal data has been implemented yet.
 
 ## Local development
 
-Use Netlify Dev so the frontend and Functions share one origin:
+Run FastAPI on port 8000 and `npm run dev` on port 5173. Vite proxies `/api` to FastAPI. In `backend/.env`, use:
 
-```bash
-npx netlify dev
+```text
+FRONTEND_URL=http://localhost:5173
+GOOGLE_CALLBACK_URL=http://localhost:5173/api/auth/google/callback
 ```
 
-The app will be available at `http://localhost:8888`.
+Register that exact callback with Google. Apple requires an HTTPS development origin and matching frontend/callback configuration; plain localhost is unsupported. `backend/.env` overrides root `.env` values, so ensure it does not retain obsolete callback URLs.
+
+## Routes and session behavior
+
+- `GET /api/auth/google/start`, `GET /api/auth/apple/start`: begin sign-in.
+- `GET /api/auth/google/callback`, `POST /api/auth/apple/callback`: finish sign-in.
+- `GET /api/auth/me`: current user, or `{ "user": null }`.
+- `POST /api/auth/logout`: revoke the session; requires an Origin header matching `FRONTEND_URL`.
+
+State is signed, expires after ten minutes, and is bound to the browser and provider. Google also uses PKCE. Both providers' identity tokens are checked for signature, issuer, audience, expiration, and nonce. Apple's state cookie uses Secure/SameSite=None to support its cross-site form POST; application sessions use HttpOnly/SameSite=Lax cookies.
+
+Only token hashes are stored in Postgres. Sessions expire after 30 days and logout deletes the stored session. Database failures never fall back to unsigned or independent sessions. Accounts are identified by provider and subject; matching email addresses do not automatically link providers. Returning Apple users can sign in without a repeated email/name payload.
+
+## Verification
+
+Run the backend test suite as described in `BACKEND-SETUP.md`. Provider HTTP responses are mocked; token validation uses locally signed RSA tokens and session tests use real Postgres. After configuring credentials, verify actual Google and Apple sign-in, refresh, and logout through the live frontend. Tests cannot establish that provider-console settings are correct.

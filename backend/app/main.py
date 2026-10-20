@@ -6,9 +6,21 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from .config import get_settings
 from .db import get_engine
+from .auth import router as auth_router
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
+app.include_router(auth_router)
+
+
+@app.exception_handler(SQLAlchemyError)
+def database_error(request, exc):
+    return JSONResponse(status_code=503, content={"detail": "Database temporarily unavailable"}, headers={"Cache-Control": "no-store"})
+
+
+@app.get("/")
+def index():
+    return {"service": settings.app_name, "docs": "/docs", "health": "/api/health", "ready": "/api/ready"}
 
 app.add_middleware(
     CORSMiddleware,
