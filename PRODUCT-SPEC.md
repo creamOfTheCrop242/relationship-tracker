@@ -464,11 +464,11 @@ Set up React, TypeScript, Vite, the PWA structure, GitHub, Netlify deployment, a
 
 ### Phase 2: Custom authentication
 
-Set up custom Google and Apple OAuth through Netlify Functions, secure session cookies, provider identity mapping, protected routes, session handling, and single-user access.
+Set up custom Google and Apple OAuth through FastAPI, secure session cookies, provider identity mapping, protected routes, session handling, and single-user access.
 
 ### Phase 3: Database and backend
 
-Create the PostgreSQL schema, Drizzle migrations, Netlify Functions, authenticated operations, and ownership checks.
+Create the PostgreSQL schema, Alembic migrations, FastAPI endpoints, authenticated operations, and ownership checks.
 
 ### Phase 4: Event tracking
 
