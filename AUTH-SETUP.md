@@ -22,7 +22,7 @@ APPLE_CALLBACK_URL=https://your-site.netlify.app/api/auth/apple/callback
 
 Register the exact callback URLs with Google and Apple. For Google, also register the frontend origin. Apple requires an HTTPS domain, a Services ID, and Sign in with Apple enabled for its associated App ID. A provider with incomplete configuration returns 503 at its start endpoint.
 
-Deploy the backend before publishing the frontend proxy changes. Existing Netlify sessions do not transfer; users must sign in again. The old Netlify database is not migrated by this change. No journal data has been implemented yet.
+Deploy the backend before publishing frontend changes that depend on it. Sessions from the original Netlify implementation do not transfer; users must sign in again. The old Netlify database is not migrated. Journal entries now live in Heroku Postgres.
 
 ## Local development
 

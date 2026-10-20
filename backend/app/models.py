@@ -41,3 +41,27 @@ class UserSession(Base):
     token_hash: Mapped[str] = mapped_column(Text, unique=True)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Relationship(Base):
+    __tablename__ = 'relationships'
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text('gen_random_uuid()'))
+    owner_id: Mapped[UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), unique=True)
+    partner_name: Mapped[str] = mapped_column(Text, server_default='Partner')
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class Event(Base):
+    __tablename__ = 'events'
+    __table_args__ = (Index('events_relationship_time_idx', 'relationship_id', 'occurred_at', 'id'),)
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text('gen_random_uuid()'))
+    relationship_id: Mapped[UUID] = mapped_column(ForeignKey('relationships.id', ondelete='CASCADE'))
+    category: Mapped[str] = mapped_column(Text)
+    description: Mapped[str] = mapped_column(Text)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    person: Mapped[str | None] = mapped_column(Text)
+    mood: Mapped[str | None] = mapped_column(Text)
+    impact: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
