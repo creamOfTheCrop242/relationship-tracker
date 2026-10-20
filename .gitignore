@@ -9,5 +9,6 @@ dist/
 # Local Netlify folder
 .netlify
 .venv/
+.venv-backend/
 __pycache__/
 *.py[cod]

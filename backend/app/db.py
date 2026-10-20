@@ -1,6 +1,7 @@
 from collections.abc import Generator
+from functools import lru_cache
 
-from sqlalchemy import create_engine
+from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import get_settings
@@ -21,14 +22,12 @@ def database_url() -> str:
     return value
 
 
-engine = None
-session_factory = None
+@lru_cache
+def get_engine() -> Engine:
+    return create_engine(database_url(), pool_pre_ping=True, connect_args={"connect_timeout": 5})
 
 
 def get_db() -> Generator[Session, None, None]:
-    global engine, session_factory
-    if engine is None:
-        engine = create_engine(database_url(), pool_pre_ping=True)
-        session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    session_factory = sessionmaker(bind=get_engine(), autoflush=False)
     with session_factory() as session:
         yield session
