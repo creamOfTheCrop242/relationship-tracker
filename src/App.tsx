@@ -17,7 +17,10 @@ const quickLog = ['Intimacy', 'Kindness', 'Conflict', 'Outing', 'Alcohol', 'Chil
 function App() {
   const [user, setUser] = useState<AuthUser | null>(null)
   const [authLoading, setAuthLoading] = useState(true)
-  const [authError, setAuthError] = useState<string | null>(null)
+  const [authError, setAuthError] = useState<string | null>(() =>
+    new URLSearchParams(window.location.search).has('auth_error')
+      ? 'Sign-in could not be completed. Please try again with your original sign-in provider.'
+      : null)
 
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -34,8 +37,15 @@ function App() {
     window.location.assign(`/api/auth/${provider}/start`)
   }
 
-  const signOut = () => {
-    window.location.assign('/api/auth/logout')
+  const signOut = async () => {
+    try {
+      const response = await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      if (!response.ok) throw new Error('Sign-out failed')
+      setUser(null)
+      setAuthError(null)
+    } catch {
+      window.alert('Could not sign out. Please try again.')
+    }
   }
 
   if (authLoading) {

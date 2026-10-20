@@ -31,7 +31,7 @@ Score cards should use a calm information treatment rather than aggressive red o
 ## Initial product decisions
 
 - The app is private to one user initially.
-- The user signs in with Google or Apple through custom OAuth handled by Netlify Functions.
+- The user signs in with Google or Apple through custom OAuth handled by FastAPI.
 - All entries are owned by the authenticated user.
 - The partner does not need an account in the first version.
 - The partner can be represented as “Partner.”
@@ -49,15 +49,16 @@ Instead, the app will use a custom OAuth flow modeled after the Chess Sagas impl
 
 ```text
 React app
-  → Netlify Function
+  → Netlify same-origin API proxy
+    → FastAPI on Heroku
     → Google or Apple OAuth
-      → Netlify Database
+      → Heroku Postgres
         → Secure session cookie
 ```
 
-Netlify Database remains the application database and is independent of the authentication provider.
+Heroku Postgres is the application database and is independent of the authentication provider. Netlify hosts the frontend and proxies API requests.
 
-The authentication Functions will:
+The authentication backend will:
 
 - Generate Google and Apple authorization URLs.
 - Use unpredictable state values to protect against CSRF.
@@ -463,11 +464,11 @@ Set up React, TypeScript, Vite, the PWA structure, GitHub, Netlify deployment, a
 
 ### Phase 2: Custom authentication
 
-Set up custom Google and Apple OAuth through Netlify Functions, secure session cookies, provider identity mapping, protected routes, session handling, and single-user access.
+Set up custom Google and Apple OAuth through FastAPI, secure session cookies, provider identity mapping, protected routes, session handling, and single-user access.
 
 ### Phase 3: Database and backend
 
-Create the PostgreSQL schema, Drizzle migrations, Netlify Functions, authenticated operations, and ownership checks.
+Create the PostgreSQL schema, Alembic migrations, FastAPI endpoints, authenticated operations, and ownership checks.
 
 ### Phase 4: Event tracking
 

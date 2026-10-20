@@ -1,6 +1,6 @@
 # FastAPI backend
 
-Netlify hosts the React frontend. The FastAPI service and its PostgreSQL database are intended for Heroku. Authentication still runs through Netlify Functions until the next migration step.
+Netlify hosts the React frontend. The FastAPI service and its PostgreSQL database are intended for Heroku. Authentication runs in FastAPI; see `AUTH-SETUP.md` for provider configuration and frontend proxy routing.
 
 ## Local development
 
@@ -29,7 +29,7 @@ uvicorn backend.app.main:app --reload --port 8000
 - `GET /api/ready`: database connectivity and required account tables; returns 503 if unavailable or not migrated.
 - `http://localhost:8000/docs`: API documentation.
 
-The frontend still uses Netlify's authentication endpoints. Starting FastAPI alone does not enable frontend sign-in or entry storage.
+Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; entry storage is not implemented yet.
 
 ## Database migrations
 
@@ -61,4 +61,4 @@ Deploy the `backend` directory as the app root, create a Heroku app, and attach 
 
 The Procfile release command runs `alembic -c alembic.ini upgrade head` before starting the web process. No application code creates or modifies tables automatically. Verify `/api/ready` after deployment.
 
-Authentication and relationship data endpoints are the next backend step.
+Relationship data endpoints are the next backend step.

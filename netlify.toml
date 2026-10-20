@@ -2,38 +2,12 @@
   command = "npm run build"
   publish = "dist"
 
-[functions]
-  directory = "netlify/functions"
-
+# Keep auth cookies on the frontend origin while FastAPI handles requests.
 [[redirects]]
-  from = "/api/auth/google/start"
-  to = "/.netlify/functions/auth-start?provider=google"
-  status = 302
-
-[[redirects]]
-  from = "/api/auth/apple/start"
-  to = "/.netlify/functions/auth-start?provider=apple"
-  status = 302
-
-[[redirects]]
-  from = "/api/auth/google/callback"
-  to = "/.netlify/functions/auth-google-callback"
+  from = "/api/*"
+  to = "https://so-about-us-ab4b18b5d8b8.herokuapp.com/api/:splat"
   status = 200
-
-[[redirects]]
-  from = "/api/auth/apple/callback"
-  to = "/.netlify/functions/auth-apple-callback"
-  status = 200
-
-[[redirects]]
-  from = "/api/auth/me"
-  to = "/.netlify/functions/auth-me"
-  status = 200
-
-[[redirects]]
-  from = "/api/auth/logout"
-  to = "/.netlify/functions/auth-logout"
-  status = 200
+  force = true
 
 [[redirects]]
   from = "/*"
