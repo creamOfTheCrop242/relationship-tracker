@@ -132,3 +132,47 @@ class JournalTests(DatabaseTestCase):
         self.session.flush()
         self.assertEqual(self.session.scalars(select(Event)).all(), [])
         self.assertEqual(self.session.scalars(select(Relationship)).all(), [])
+
+    def test_event_filters_search_and_owner_isolation(self):
+        cases = [
+            {'category': 'conflict', 'description': 'Talked through chores', 'occurred_at': '2026-09-30T23:59:00Z',
+             'person': 'both', 'notes': 'Resolved calmly', 'details': {'cause': 'Laundry', 'resolved': True}},
+            {'category': 'outing', 'description': 'Park walk', 'occurred_at': '2026-10-01T12:00:00Z',
+             'person': 'partner', 'mood': 'Joyful', 'details': {'activity': 'Botanical Garden'}},
+            {'category': 'kindness', 'description': 'Made 100% dinner', 'occurred_at': '2026-10-02T00:00:00Z',
+             'person': 'both', 'impact': 'Felt supported'},
+        ]
+        for data in cases:
+            result = self.client.post('/api/events', json=self.data | data)
+            self.assertEqual(result.status_code, 201, result.text)
+
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[1])
+        self.client.post('/api/events', json=self.data | {'description': 'Private botanical note'})
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[0])
+
+        def descriptions(query):
+            response = self.client.get('/api/events?' + query)
+            self.assertEqual(response.status_code, 200, response.text)
+            return [row['description'] for row in response.json()]
+
+        self.assertEqual(descriptions('category=outing'), ['Park walk'])
+        self.assertEqual(descriptions('person=both'), ['Made 100% dinner', 'Talked through chores'])
+        self.assertEqual(descriptions('q=joyful'), ['Park walk'])
+        self.assertEqual(descriptions('q=botanical'), ['Park walk'])
+        self.assertEqual(descriptions('q=laundry'), ['Talked through chores'])
+        self.assertEqual(descriptions('q=100%25'), ['Made 100% dinner'])
+        self.assertEqual(descriptions('q=%25'), ['Made 100% dinner'])
+        self.assertEqual(descriptions('occurred_from=2026-10-01T00%3A00%3A00Z&occurred_before=2026-10-02T00%3A00%3A00Z'), ['Park walk'])
+        self.assertEqual(descriptions('category=kindness&person=both&q=supported&limit=1'), ['Made 100% dinner'])
+        self.assertEqual(descriptions('person=both&limit=1&offset=1'), ['Talked through chores'])
+
+    def test_event_filter_validation(self):
+        invalid = [
+            'category=unknown', 'person=unknown', 'q=' + ('a' * 201),
+            'occurred_from=2026-10-01T12%3A00%3A00',
+            'occurred_before=2026-10-01T12%3A00%3A00',
+            'occurred_from=2026-10-02T00%3A00%3A00Z&occurred_before=2026-10-01T00%3A00%3A00Z',
+        ]
+        for query in invalid:
+            response = self.client.get('/api/events?' + query)
+            self.assertEqual(response.status_code, 422, (query, response.text))

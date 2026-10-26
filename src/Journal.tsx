@@ -6,6 +6,9 @@ type Category = keyof typeof categories
 type DetailValue = string | number | boolean
 type Entry = { id: string; category: Category; description: string; occurred_at: string; person: string | null; mood: string | null; impact: string | null; notes: string | null; details: Record<string, DetailValue> }
 type Relationship = { id: string; partner_name: string }
+type Filters = { q: string; category: '' | Category; person: string; from: string; to: string }
+
+const emptyFilters: Filters = { q: '', category: '', person: '', from: '', to: '' }
 
 const titleCase = (value: DetailValue) => String(value).replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase())
 
@@ -91,6 +94,21 @@ function localDate(value = new Date().toISOString()) {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
 
+function eventPath(filters: Filters, offset = 0) {
+  const params = new URLSearchParams({ limit: '50' })
+  if (offset) params.set('offset', String(offset))
+  if (filters.q.trim()) params.set('q', filters.q.trim())
+  if (filters.category) params.set('category', filters.category)
+  if (filters.person) params.set('person', filters.person)
+  if (filters.from) params.set('occurred_from', new Date(`${filters.from}T00:00:00`).toISOString())
+  if (filters.to) {
+    const nextDay = new Date(`${filters.to}T00:00:00`)
+    nextDay.setDate(nextDay.getDate() + 1)
+    params.set('occurred_before', nextDay.toISOString())
+  }
+  return `/events?${params}`
+}
+
 export default function Journal({ name, signOut }: { name: string; signOut: () => void }) {
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
@@ -104,13 +122,21 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
   const [partner, setPartner] = useState('')
   const [formError, setFormError] = useState('')
   const [formVersion, setFormVersion] = useState(0)
+  const [filterDraft, setFilterDraft] = useState<Filters>(emptyFilters)
+  const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters)
   const dialog = useRef<HTMLDialogElement>(null)
+
+  async function replaceEntries(filters: Filters) {
+    const rows = await api<Entry[]>(eventPath(filters))
+    setEntries(rows)
+    setHasMore(rows.length === 50)
+  }
 
   async function load() {
     setLoading(true)
     setError('')
     try {
-      const [rel, rows] = await Promise.all([api<Relationship | null>('/relationship'), api<Entry[]>('/events?limit=50')])
+      const [rel, rows] = await Promise.all([api<Relationship | null>('/relationship'), api<Entry[]>(eventPath(appliedFilters))])
       setRelationship(rel)
       setPartner(rel?.partner_name === 'Partner' ? '' : rel?.partner_name ?? '')
       setEntries(rows)
@@ -140,7 +166,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       await api(editing ? `/events/${editing.id}` : '/events', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) })
       dialog.current?.close()
       setNotice(editing ? 'Entry updated.' : 'Entry saved.')
-      await load()
+      await replaceEntries(appliedFilters)
     } catch (err) { setFormError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -164,7 +190,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
     try {
       await api(`/events/${entry.id}`, { method: 'DELETE' })
       setNotice('Entry deleted.')
-      await load()
+      await replaceEntries(appliedFilters)
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -173,12 +199,41 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
     setBusy(true)
     setError('')
     try {
-      const rows = await api<Entry[]>(`/events?limit=50&offset=${entries.length}`)
+      const rows = await api<Entry[]>(eventPath(appliedFilters, entries.length))
       setEntries(previous => [...previous, ...rows.filter(row => !previous.some(item => item.id === row.id))])
       setHasMore(rows.length === 50)
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
+
+  async function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    if (filterDraft.from && filterDraft.to && filterDraft.from > filterDraft.to) {
+      setError('The start date must be on or before the end date.')
+      return
+    }
+    setLoading(true)
+    try {
+      const next = { ...filterDraft }
+      await replaceEntries(next)
+      setAppliedFilters(next)
+    } catch (err) { setError((err as Error).message) }
+    finally { setLoading(false) }
+  }
+
+  async function clearFilters() {
+    setError('')
+    setLoading(true)
+    try {
+      await replaceEntries(emptyFilters)
+      setFilterDraft(emptyFilters)
+      setAppliedFilters(emptyFilters)
+    } catch (err) { setError((err as Error).message) }
+    finally { setLoading(false) }
+  }
+
+  const filtersActive = Object.values(appliedFilters).some(Boolean)
 
   return <main className="app-shell">
     <header className="topbar">
@@ -200,7 +255,15 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       <div className="quick-log-grid">{Object.entries(categories).map(([value, label]) => <button key={value} className="quick-log-button" disabled={loading || busy} onClick={() => openForm(value as Category)}>{label}</button>)}</div>
     </section>
     <section className="section-block"><div className="section-heading"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>Your timeline</h2></div></div>
-      {loading ? <p role="status">Loading your entries…</p> : !entries.length && !error ? <div className="empty-state"><span className="empty-icon">✦</span><p>Your first entry will start your timeline.</p></div> : <div className="timeline">{entries.map(entry => <article className="entry-card" key={entry.id}>
+      <form className="timeline-filters" onSubmit={applyFilters}>
+        <label className="filter-search">Search<input type="search" maxLength={200} value={filterDraft.q} onChange={event => setFilterDraft(current => ({ ...current, q: event.target.value }))} placeholder="Words in an entry" disabled={loading || busy} /></label>
+        <label>Category<select value={filterDraft.category} onChange={event => setFilterDraft(current => ({ ...current, category: event.target.value as Filters['category'] }))} disabled={loading || busy}><option value="">All categories</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+        <label>Person<select value={filterDraft.person} onChange={event => setFilterDraft(current => ({ ...current, person: event.target.value }))} disabled={loading || busy}><option value="">Anyone</option><option value="me">Me</option><option value="partner">{relationship?.partner_name ?? 'Partner'}</option><option value="both">Both</option><option value="neither">Neither</option></select></label>
+        <label>From<input type="date" value={filterDraft.from} onChange={event => setFilterDraft(current => ({ ...current, from: event.target.value }))} disabled={loading || busy} /></label>
+        <label>To<input type="date" value={filterDraft.to} onChange={event => setFilterDraft(current => ({ ...current, to: event.target.value }))} disabled={loading || busy} /></label>
+        <div className="filter-actions"><button className="primary-button" disabled={loading || busy}>{loading ? 'Filtering…' : 'Apply'}</button><button type="button" className="text-button" onClick={() => void clearFilters()} disabled={loading || busy || (!filtersActive && !Object.values(filterDraft).some(Boolean))}>Clear</button></div>
+      </form>
+      {loading ? <p role="status">Loading your entries…</p> : !entries.length && !error ? <div className="empty-state"><span className="empty-icon">✦</span><p>{filtersActive ? 'No entries match these filters.' : 'Your first entry will start your timeline.'}</p></div> : <div className="timeline">{entries.map(entry => <article className="entry-card" key={entry.id}>
         <div className="entry-meta"><span className="status-pill">{categories[entry.category]}</span><time dateTime={entry.occurred_at}>{new Date(entry.occurred_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>
         <h3>{entry.description}</h3>
         {entry.person && <p className="muted">Involved: {entry.person === 'partner' ? relationship?.partner_name ?? 'Partner' : entry.person}</p>}
