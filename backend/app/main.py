@@ -9,12 +9,14 @@ from .db import get_engine
 from .auth import router as auth_router
 from .journal import router as journal_router
 from .needs import router as needs_router
+from .dashboard import router as dashboard_router
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
 app.include_router(auth_router)
 app.include_router(journal_router)
 app.include_router(needs_router)
+app.include_router(dashboard_router)
 
 
 @app.exception_handler(SQLAlchemyError)

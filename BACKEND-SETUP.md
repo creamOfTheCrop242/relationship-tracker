@@ -74,3 +74,5 @@ Migration `0003_event_details` adds a JSONB object for category-specific values.
 Migration `0004_relationship_needs` adds `relationship_needs` and `need_updates`. `GET /api/needs` lists active needs and accepts `include_archived=true`. `POST /api/needs`, `PUT /api/needs/{id}`, and `PATCH /api/needs/{id}/archive` create, edit, archive, or restore a need. Nested `/api/needs/{id}/updates` routes create, edit, and delete dated history. The API validates cadence combinations, partner confirmation, statuses, satisfaction ratings, ownership, and text limits.
 
 Migration `0005_need_integrity` adds database constraints for valid cadence and partner-confirmation combinations.
+
+`GET /api/dashboard` returns the signed-in user's latest event in each dashboard category, latest conflict that records someone as upset, five recent events, and active need summaries. Need summaries flag a latest satisfaction rating of 1–2, flag records with no update in the last 14 days, and calculate a trend after four updates by comparing the latest two satisfaction ratings with the previous two. The route uses session ownership for every event and need query.
