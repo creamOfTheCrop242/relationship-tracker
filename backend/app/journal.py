@@ -3,7 +3,7 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
@@ -44,6 +44,59 @@ class RelationshipOutput(RelationshipInput):
     id: UUID
 
 
+class DetailModel(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
+
+
+class IntimacyDetails(DetailModel):
+    type: Literal['sex', 'kissing', 'cuddling', 'affection', 'emotional_closeness', 'custom'] | None = None
+    custom_type: str | None = Field(default=None, max_length=100)
+    satisfaction: int | None = Field(default=None, ge=1, le=5)
+
+
+class KindnessDetails(DetailModel):
+    initiated_by: Literal['me', 'partner', 'both'] | None = None
+    appreciation: int | None = Field(default=None, ge=1, le=5)
+
+
+class ConflictDetails(DetailModel):
+    upset: Literal['me', 'partner', 'both'] | None = None
+    initiated_by: Literal['me', 'partner', 'both'] | None = None
+    cause: str | None = Field(default=None, max_length=500)
+    resolved: bool | None = None
+    intensity: int | None = Field(default=None, ge=1, le=5)
+
+
+class OutingDetails(DetailModel):
+    activity: str | None = Field(default=None, max_length=200)
+    attended_by: Literal['me', 'partner', 'both', 'others'] | None = None
+    enjoyment: int | None = Field(default=None, ge=1, le=5)
+
+
+class AlcoholDetails(DetailModel):
+    drank: Literal['me', 'partner', 'both'] | None = None
+    level: Literal['light', 'moderate', 'heavy'] | None = None
+    context: str | None = Field(default=None, max_length=500)
+
+
+class ChildcareDetails(DetailModel):
+    provided_by: Literal['me', 'partner', 'both', 'other'] | None = None
+    duration_minutes: int | None = Field(default=None, ge=1, le=1440)
+    felt_fair: bool | None = None
+
+
+class CustomDetails(DetailModel):
+    rating: int | None = Field(default=None, ge=1, le=5)
+
+
+DETAIL_MODELS = {
+    'intimacy': IntimacyDetails, 'kindness': KindnessDetails,
+    'conflict': ConflictDetails, 'outing': OutingDetails,
+    'alcohol': AlcoholDetails, 'childcare': ChildcareDetails,
+    'custom': CustomDetails,
+}
+
+
 class EventInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
     category: Literal['intimacy', 'kindness', 'conflict', 'outing', 'alcohol', 'childcare', 'custom']
@@ -53,6 +106,14 @@ class EventInput(BaseModel):
     mood: str | None = Field(default=None, max_length=100)
     impact: str | None = Field(default=None, max_length=200)
     notes: str | None = Field(default=None, max_length=10000)
+    details: dict = Field(default_factory=dict)
+
+    @model_validator(mode='after')
+    def validate_details(self):
+        self.details = DETAIL_MODELS[self.category](**self.details).model_dump(exclude_none=True)
+        if self.category == 'intimacy' and self.details.get('type') == 'custom' and not self.details.get('custom_type'):
+            raise ValueError('Custom intimacy type is required when type is custom')
+        return self
 
 
 class EventOutput(EventInput):

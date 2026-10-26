@@ -80,6 +80,45 @@ class JournalTests(DatabaseTestCase):
         self.assertEqual(self.client.get('/api/events?limit=1000').status_code, 422)
         self.assertEqual(self.client.get('/api/events?offset=-1').status_code, 422)
 
+    def test_category_details_are_validated_and_persisted(self):
+        cases = {
+            'intimacy': {'type': 'cuddling', 'satisfaction': 5},
+            'kindness': {'initiated_by': 'partner', 'appreciation': 4},
+            'conflict': {'upset': 'both', 'initiated_by': 'me', 'cause': 'Plans changed', 'resolved': False, 'intensity': 3},
+            'outing': {'activity': 'Dinner', 'attended_by': 'both', 'enjoyment': 5},
+            'alcohol': {'drank': 'partner', 'level': 'moderate', 'context': 'At dinner'},
+            'childcare': {'provided_by': 'both', 'duration_minutes': 90, 'felt_fair': True},
+            'custom': {'rating': 2},
+        }
+        for category, details in cases.items():
+            result = self.client.post('/api/events', json=self.data | {'category': category, 'details': details})
+            self.assertEqual(result.status_code, 201, result.text)
+            self.assertEqual(result.json()['details'], details)
+        rows = self.client.get('/api/events').json()
+        self.assertEqual({row['category']: row['details'] for row in rows}, cases)
+
+    def test_invalid_category_details_are_rejected(self):
+        invalid = [
+            ('kindness', {'intensity': 3}),
+            ('conflict', {'intensity': 0}),
+            ('custom', {'rating': 6}),
+            ('alcohol', {'level': 'extreme'}),
+            ('childcare', {'duration_minutes': 1441}),
+            ('intimacy', {'type': 'custom'}),
+        ]
+        for category, details in invalid:
+            result = self.client.post('/api/events', json=self.data | {'category': category, 'details': details})
+            self.assertEqual(result.status_code, 422, result.text)
+
+    def test_custom_intimacy_type_and_empty_details(self):
+        custom = {'type': 'custom', 'custom_type': 'Holding hands', 'satisfaction': 4}
+        result = self.client.post('/api/events', json=self.data | {'category': 'intimacy', 'details': custom})
+        self.assertEqual(result.status_code, 201)
+        self.assertEqual(result.json()['details'], custom)
+        result = self.client.post('/api/events', json=self.data | {'category': 'kindness'})
+        self.assertEqual(result.status_code, 201)
+        self.assertEqual(result.json()['details'], {})
+
     def test_relationship_upsert_and_ordering(self):
         first = self.client.put('/api/relationship', json={'partner_name': ' Alex '}).json()
         second = self.client.put('/api/relationship', json={'partner_name': 'Sam'}).json()
