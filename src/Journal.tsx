@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { api } from './api'
+import Dashboard from './Dashboard'
 import Needs from './Needs'
 
 const categories = { intimacy: 'Intimacy', kindness: 'Kindness', conflict: 'Conflict', outing: 'Outing', alcohol: 'Alcohol', childcare: 'Childcare', custom: 'Custom' }
@@ -117,6 +118,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
   const [formVersion, setFormVersion] = useState(0)
   const [filterDraft, setFilterDraft] = useState<Filters>(emptyFilters)
   const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters)
+  const [dashboardVersion, setDashboardVersion] = useState(0)
   const dialog = useRef<HTMLDialogElement>(null)
 
   async function replaceEntries(filters: Filters) {
@@ -160,6 +162,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       dialog.current?.close()
       setNotice(editing ? 'Entry updated.' : 'Entry saved.')
       await replaceEntries(appliedFilters)
+      setDashboardVersion(value => value + 1)
     } catch (err) { setFormError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -184,6 +187,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       await api(`/events/${entry.id}`, { method: 'DELETE' })
       setNotice('Entry deleted.')
       await replaceEntries(appliedFilters)
+      setDashboardVersion(value => value + 1)
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -238,6 +242,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       <div><p className="eyebrow">YOU AND {(relationship?.partner_name ?? 'Partner').toUpperCase()}</p><h2>Welcome, {name}</h2><p className="muted">Notice what happened. Remember what matters.</p></div>
       <button className="primary-button" disabled={loading || busy} onClick={() => openForm('kindness')}>＋ Log something</button>
     </section>
+    <Dashboard partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} onLog={() => openForm('kindness')} />
     {error && <div className="auth-warning" role="alert">{error} <button className="text-button" disabled={busy || loading} onClick={() => void load()}>Retry</button></div>}
     <p className="save-notice" role="status">{notice}</p>
     <details className="partner-settings"><summary>Partner name (optional)</summary>
@@ -267,7 +272,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       </article>)}</div>}
       {hasMore && !loading && <button className="primary-button load-more" disabled={busy} onClick={() => void loadMore()}>{busy ? 'Loading…' : 'Load older entries'}</button>}
     </section>
-    <Needs partnerName={relationship?.partner_name ?? 'Partner'} />
+    <Needs partnerName={relationship?.partner_name ?? 'Partner'} onChanged={() => setDashboardVersion(value => value + 1)} />
     <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title" onCancel={event => { if (busy) event.preventDefault() }}>
       <form key={formVersion} onSubmit={save}>
         <h2 id="entry-title">{editing ? 'Edit entry' : 'Log a moment'}</h2>

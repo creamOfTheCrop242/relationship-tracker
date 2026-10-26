@@ -486,6 +486,8 @@ Relationship needs identify whether the need belongs to the user or reflects the
 
 Build last-time cards, recent activity, current needs, trend views, low-satisfaction indicators, and the latest reflection.
 
+The deterministic dashboard shows the latest recorded intimacy, kindness, conflict, outing, drinking, childcare, and upset events; five recent events; and active need summaries. A need is flagged for low recent satisfaction when its latest rating is 1 or 2, and as stale when it has no update or its latest update is more than 14 days old. After four dated updates, the trend compares the average of the latest two satisfaction ratings with the previous two; a difference of at least 0.5 is shown as improving or declining, otherwise it is steady. These signals describe recorded data only and do not judge overall relationship health. The latest AI reflection remains part of Phase 7.
+
 ### Phase 7: OpenAI reflections
 
 Build scheduled analysis, manual regeneration, structured AI output, daily reflections, period summaries, confidence, and data coverage.

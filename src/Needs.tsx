@@ -24,7 +24,7 @@ function cadence(need: Need) {
   return `${need.desired_amount} ${need.desired_amount === 1 ? 'time' : 'times'} ${period}`
 }
 
-export default function Needs({ partnerName }: { partnerName: string }) {
+export default function Needs({ partnerName, onChanged }: { partnerName: string; onChanged: () => void }) {
   const [needs, setNeeds] = useState<Need[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -77,6 +77,7 @@ export default function Needs({ partnerName }: { partnerName: string }) {
       needDialog.current?.close()
       setNotice(editing ? 'Need updated.' : 'Need added.')
       await load()
+      onChanged()
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -88,6 +89,7 @@ export default function Needs({ partnerName }: { partnerName: string }) {
       await api(`/needs/${need.id}/archive`, { method: 'PATCH', body: JSON.stringify({ active: !need.active }) })
       setNotice(need.active ? 'Need archived.' : 'Need restored.')
       await load()
+      onChanged()
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -114,6 +116,7 @@ export default function Needs({ partnerName }: { partnerName: string }) {
       updateDialog.current?.close()
       setNotice(editingUpdate ? 'Need update edited.' : 'Need update saved.')
       await load()
+      onChanged()
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
@@ -126,6 +129,7 @@ export default function Needs({ partnerName }: { partnerName: string }) {
       await api(`/needs/${need.id}/updates/${update.id}`, { method: 'DELETE' })
       setNotice('Need update deleted.')
       await load()
+      onChanged()
     } catch (err) { setError((err as Error).message) }
     finally { setBusy(false) }
   }
