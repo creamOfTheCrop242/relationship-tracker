@@ -29,7 +29,7 @@ uvicorn backend.app.main:app --reload --port 8000
 - `GET /api/ready`: database connectivity and required account tables; returns 503 if unavailable or not migrated.
 - `http://localhost:8000/docs`: API documentation.
 
-Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; current entry storage requires migration `0003_event_details`.
+Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; current journal and needs storage requires migration `0005_need_integrity`.
 
 ## Database migrations
 
@@ -70,3 +70,7 @@ The Procfile release command runs `alembic -c alembic.ini upgrade head` before s
 Migration `0002_events` creates the relationship and event tables. Deploy the backend and verify readiness before merging the frontend change. The tests cover validation, timezone conversion, pagination, cascading deletion, and isolation between users. Full browser acceptance: save an entry, refresh, edit it, cancel a deletion, confirm deletion, and verify a failed request preserves form input.
 
 Migration `0003_event_details` adds a JSONB object for category-specific values. The API validates the allowed shape for each category, including 1–5 ratings, enumerated selections, optional booleans, text limits, and childcare duration. Existing events receive an empty details object and remain readable.
+
+Migration `0004_relationship_needs` adds `relationship_needs` and `need_updates`. `GET /api/needs` lists active needs and accepts `include_archived=true`. `POST /api/needs`, `PUT /api/needs/{id}`, and `PATCH /api/needs/{id}/archive` create, edit, archive, or restore a need. Nested `/api/needs/{id}/updates` routes create, edit, and delete dated history. The API validates cadence combinations, partner confirmation, statuses, satisfaction ratings, ownership, and text limits.
+
+Migration `0005_need_integrity` adds database constraints for valid cadence and partner-confirmation combinations.
