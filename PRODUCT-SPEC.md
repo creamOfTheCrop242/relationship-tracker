@@ -480,6 +480,8 @@ Event tracking provides an optional partner name (default “Partner”), one pr
 
 Build adding and editing needs, archiving, desired cadence tracking, dated need updates, satisfaction ratings, and need history.
 
+Relationship needs identify whether the need belongs to the user or reflects the user's understanding of their partner. Partner needs show whether the partner directly confirmed them. Each need supports importance, explanatory context, active or archived status, and either no target, an as-needed cadence, a daily/weekly/monthly target, or a custom number of days. Dated updates record met, partly met, or not met status, what happened, a 1–5 satisfaction rating, optional notes, and editable history. Cadence is presented as a preference rather than an obligation, and missing updates remain unknown.
+
 ### Phase 6: Dashboard
 
 Build last-time cards, recent activity, current needs, trend views, low-satisfaction indicators, and the latest reflection.

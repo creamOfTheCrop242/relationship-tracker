@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
+import { api } from './api'
+import Needs from './Needs'
 
 const categories = { intimacy: 'Intimacy', kindness: 'Kindness', conflict: 'Conflict', outing: 'Outing', alcohol: 'Alcohol', childcare: 'Childcare', custom: 'Custom' }
 type Category = keyof typeof categories
@@ -78,15 +80,6 @@ function detailRows(entry: Entry, partnerName: string) {
     if (key === 'type' && value === 'custom') display = String(entry.details.custom_type ?? 'Custom')
     return [labels[key] ?? titleCase(key), display]
   })
-}
-
-async function api<T>(path: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`/api${path}`, { credentials: 'include', ...options, headers: { 'Content-Type': 'application/json', ...options?.headers } })
-  if (!response.ok) {
-    if (response.status === 401) throw new Error('Your session has expired. Please sign out and sign in again.')
-    throw new Error(response.status === 422 ? 'Please check the entry fields and try again.' : 'Could not complete the request. Please try again.')
-  }
-  return response.status === 204 ? undefined as T : response.json()
 }
 
 function localDate(value = new Date().toISOString()) {
@@ -274,7 +267,7 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
       </article>)}</div>}
       {hasMore && !loading && <button className="primary-button load-more" disabled={busy} onClick={() => void loadMore()}>{busy ? 'Loading…' : 'Load older entries'}</button>}
     </section>
-    <section className="reflection-card"><p className="eyebrow">COMING SOON</p><h3>Relationship needs and reflections</h3><p className="muted">For now, start with the moments you want to remember.</p></section>
+    <Needs partnerName={relationship?.partner_name ?? 'Partner'} />
     <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title" onCancel={event => { if (busy) event.preventDefault() }}>
       <form key={formVersion} onSubmit={save}>
         <h2 id="entry-title">{editing ? 'Edit entry' : 'Log a moment'}</h2>

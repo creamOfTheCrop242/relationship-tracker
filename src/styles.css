@@ -104,6 +104,27 @@ h3 { margin-bottom: 4px; font-size: 17px; letter-spacing: -.02em; }
 .quick-log-button:hover { border-color: var(--terracotta); color: var(--terracotta); background: white; }
 .needs-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
 .need-card { padding: 20px; }
+.needs-intro { margin-bottom: 14px; }
+.archive-toggle { display: flex; width: fit-content; grid-template-columns: auto 1fr; align-items: center; gap: 9px; margin-bottom: 22px; color: var(--muted); }
+.archive-toggle input { width: auto; }
+.need-card.archived { background: #f1ece5; opacity: .78; }
+.importance-pill { padding: 6px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; text-transform: uppercase; }
+.importance-pill.low { background: #eef2eb; color: #55704f; }
+.importance-pill.medium { background: #fff4d9; color: #795c1d; }
+.importance-pill.high { background: #fbe2dc; color: #8e3f30; }
+.need-cadence { width: fit-content; margin: 14px 0; padding: 8px 10px; border-radius: 10px; background: #f3eee7; font-size: 13px; font-weight: 700; }
+.confirmation-note { padding: 10px 12px; border-left: 3px solid var(--gold); background: #fff9e8; color: var(--muted); font-size: 13px; }
+.need-actions, .need-update-actions { display: flex; justify-content: flex-end; gap: 20px; }
+.need-actions { padding-top: 14px; border-top: 1px solid var(--line); }
+.need-history { margin-top: 20px; }
+.need-history h4 { margin: 0 0 10px; font-size: 14px; }
+.need-history > .muted { font-size: 13px; }
+.need-update { padding: 14px 0; border-top: 1px solid var(--line); }
+.need-update > div:first-child { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+.need-update p { margin: 9px 0; font-size: 14px; }
+.need-status.met { background: #e7f2e3; color: #41613b; }
+.need-status.partly_met { background: #fff4d9; color: #795c1d; }
+.need-status.not_met { background: #fbe2dc; color: #8e3f30; }
 .need-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--terracotta); }
 .need-dot.sage, .progress-fill.sage { background: var(--sage); }
 .need-dot.terracotta, .progress-fill.terracotta { background: var(--terracotta); }
