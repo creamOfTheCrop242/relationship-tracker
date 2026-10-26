@@ -29,7 +29,7 @@ uvicorn backend.app.main:app --reload --port 8000
 - `GET /api/ready`: database connectivity and required account tables; returns 503 if unavailable or not migrated.
 - `http://localhost:8000/docs`: API documentation.
 
-Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; entry storage requires migration `0002_events`.
+Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; current entry storage requires migration `0003_event_details`.
 
 ## Database migrations
 
@@ -68,3 +68,5 @@ The Procfile release command runs `alembic -c alembic.ini upgrade head` before s
 `GET /api/events?limit=50&offset=0` returns newest entries first. `POST /api/events`, `PUT /api/events/{id}`, and `DELETE /api/events/{id}` create, edit, and remove entries. Every route requires an unexpired session. Mutations require an Origin header matching `FRONTEND_URL`. Ownership comes from the session and cannot be supplied by the client.
 
 Migration `0002_events` creates the relationship and event tables. Deploy the backend and verify readiness before merging the frontend change. The tests cover validation, timezone conversion, pagination, cascading deletion, and isolation between users. Full browser acceptance: save an entry, refresh, edit it, cancel a deletion, confirm deletion, and verify a failed request preserves form input.
+
+Migration `0003_event_details` adds a JSONB object for category-specific values. The API validates the allowed shape for each category, including 1–5 ratings, enumerated selections, optional booleans, text limits, and childcare duration. Existing events receive an empty details object and remain readable.
