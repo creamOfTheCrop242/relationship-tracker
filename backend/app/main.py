@@ -7,10 +7,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from .config import get_settings
 from .db import get_engine
 from .auth import router as auth_router
+from .journal import router as journal_router
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
 app.include_router(auth_router)
+app.include_router(journal_router)
 
 
 @app.exception_handler(SQLAlchemyError)
@@ -41,7 +43,7 @@ def ready():
     try:
         with get_engine().connect() as connection:
             # Also checks that the initial migration has been applied.
-            for table in ("users", "auth_accounts", "sessions"):
+            for table in ("users", "auth_accounts", "sessions", "relationships", "events"):
                 connection.execute(text(f"SELECT 1 FROM {table} LIMIT 0"))
         return {"status": "ok", "database": "ready"}
     except (SQLAlchemyError, RuntimeError):

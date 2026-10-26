@@ -474,6 +474,8 @@ Create the PostgreSQL schema, Alembic migrations, FastAPI endpoints, authenticat
 
 Build quick event entry, category-specific fields, timeline, filtering, search, editing, deletion, and backdating.
 
+The first event-tracking increment provides an optional partner name (default “Partner”), one private relationship per user, and entries with category, description, date/time, optional person, mood, impact, and notes. A relationship is created automatically on the first entry or when saving the partner name. Entries support editing, deletion, backdating, and a paginated timeline. Dates are entered and displayed in the device's local timezone and stored as timezone-aware timestamps. Category-specific ratings and fields, filtering, and search remain follow-up work. Adding a partner name grants no shared access.
+
 ### Phase 5: Relationship needs
 
 Build adding and editing needs, archiving, desired cadence tracking, dated need updates, satisfaction ratings, and need history.
