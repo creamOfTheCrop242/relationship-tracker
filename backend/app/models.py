@@ -17,6 +17,8 @@ class User(Base):
     email: Mapped[str] = mapped_column(Text, unique=True)
     display_name: Mapped[str | None] = mapped_column(Text)
     avatar_url: Mapped[str | None] = mapped_column(Text)
+    ai_analysis_enabled: Mapped[bool] = mapped_column(Boolean, server_default=text('false'))
+    ai_timezone: Mapped[str] = mapped_column(Text, server_default='UTC')
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -118,3 +120,38 @@ class NeedUpdate(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     need: Mapped[RelationshipNeed] = relationship(back_populates='updates')
+
+
+class RelationshipSummary(Base):
+    __tablename__ = 'relationship_summaries'
+    __table_args__ = (
+        Index('relationship_summaries_period_idx', 'relationship_id', 'period_type', 'period_start', 'period_end', unique=True),
+        CheckConstraint("period_type IN ('daily', 'weekly', 'monthly', 'yearly')", name='relationship_summaries_period_type_check'),
+        CheckConstraint("confidence IN ('low', 'medium', 'high')", name='relationship_summaries_confidence_check'),
+        CheckConstraint('score IS NULL OR score BETWEEN 0 AND 100', name='relationship_summaries_score_check'),
+        CheckConstraint('period_end > period_start', name='relationship_summaries_dates_check'),
+    )
+    id: Mapped[UUID] = mapped_column(primary_key=True, server_default=text('gen_random_uuid()'))
+    relationship_id: Mapped[UUID] = mapped_column(ForeignKey('relationships.id', ondelete='CASCADE'))
+    period_type: Mapped[str] = mapped_column(Text)
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+    score: Mapped[int | None] = mapped_column(Integer)
+    confidence: Mapped[str] = mapped_column(Text)
+    coverage_days: Mapped[int] = mapped_column(Integer)
+    total_days: Mapped[int] = mapped_column(Integer)
+    events_analyzed: Mapped[int] = mapped_column(Integer)
+    need_updates_analyzed: Mapped[int] = mapped_column(Integer)
+    data_summary: Mapped[str] = mapped_column(Text)
+    positive_factors: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    friction_factors: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    interpretation: Mapped[str] = mapped_column(Text)
+    comparison: Mapped[str] = mapped_column(Text)
+    unresolved_issues: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    suggested_actions: Mapped[list] = mapped_column(JSONB, default=list, server_default=text("'[]'::jsonb"))
+    reflection: Mapped[str] = mapped_column(Text)
+    limitations: Mapped[str] = mapped_column(Text)
+    model: Mapped[str | None] = mapped_column(Text)
+    response_id: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

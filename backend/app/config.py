@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     apple_private_key: str | None = None
     apple_callback_url: str | None = None
 
+    openai_api_key: str | None = None
+    openai_model: str = "gpt-6-astra"
+
     model_config = SettingsConfigDict(
         env_file=(Path(__file__).resolve().parents[2] / ".env",
                   Path(__file__).resolve().parents[1] / ".env"),
