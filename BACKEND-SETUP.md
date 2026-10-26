@@ -65,7 +65,7 @@ The Procfile release command runs `alembic -c alembic.ini upgrade head` before s
 
 `GET /api/relationship` returns the current user's relationship (or null). `PUT /api/relationship` saves an optional partner name; the UI defaults it to “Partner”. `POST /api/events` also creates the default relationship automatically if needed.
 
-`GET /api/events?limit=50&offset=0` returns newest entries first. `POST /api/events`, `PUT /api/events/{id}`, and `DELETE /api/events/{id}` create, edit, and remove entries. Every route requires an unexpired session. Mutations require an Origin header matching `FRONTEND_URL`. Ownership comes from the session and cannot be supplied by the client.
+`GET /api/events?limit=50&offset=0` returns newest entries first. It accepts optional `q`, `category`, `person`, `occurred_from`, and exclusive `occurred_before` filters; filters can be combined and pagination applies to the filtered results. Search covers the description, notes, mood, impact, and category-specific details. `POST /api/events`, `PUT /api/events/{id}`, and `DELETE /api/events/{id}` create, edit, and remove entries. Every route requires an unexpired session. Mutations require an Origin header matching `FRONTEND_URL`. Ownership comes from the session and cannot be supplied by the client.
 
 Migration `0002_events` creates the relationship and event tables. Deploy the backend and verify readiness before merging the frontend change. The tests cover validation, timezone conversion, pagination, cascading deletion, and isolation between users. Full browser acceptance: save an entry, refresh, edit it, cancel a deletion, confirm deletion, and verify a failed request preserves form input.
 

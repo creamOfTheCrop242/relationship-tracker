@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
-from sqlalchemy import select
+from sqlalchemy import Text, cast, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -96,13 +96,16 @@ DETAIL_MODELS = {
     'custom': CustomDetails,
 }
 
+EventCategory = Literal['intimacy', 'kindness', 'conflict', 'outing', 'alcohol', 'childcare', 'custom']
+EventPerson = Literal['me', 'partner', 'both', 'neither']
+
 
 class EventInput(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
-    category: Literal['intimacy', 'kindness', 'conflict', 'outing', 'alcohol', 'childcare', 'custom']
+    category: EventCategory
     description: str = Field(min_length=1, max_length=500)
     occurred_at: AwareDatetime
-    person: Literal['me', 'partner', 'both', 'neither'] | None = None
+    person: EventPerson | None = None
     mood: str | None = Field(default=None, max_length=100)
     impact: str | None = Field(default=None, max_length=200)
     notes: str | None = Field(default=None, max_length=10000)
@@ -145,8 +148,32 @@ def update_relationship(data: RelationshipInput, user: User = Depends(current_us
 
 @router.get('/events', response_model=list[EventOutput])
 def events(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
+           q: str | None = Query(None, max_length=200), category: EventCategory | None = None,
+           person: EventPerson | None = None, occurred_from: AwareDatetime | None = None,
+           occurred_before: AwareDatetime | None = None,
            user: User = Depends(current_user), db: Session = Depends(get_db)):
-    return db.scalars(select(Event).join(Relationship).where(Relationship.owner_id == user.id)
+    if occurred_from and occurred_before and occurred_from >= occurred_before:
+        raise HTTPException(422, 'The start date must be before the end date')
+
+    filters = [Relationship.owner_id == user.id]
+    if category:
+        filters.append(Event.category == category)
+    if person:
+        filters.append(Event.person == person)
+    if occurred_from:
+        filters.append(Event.occurred_at >= occurred_from)
+    if occurred_before:
+        filters.append(Event.occurred_at < occurred_before)
+    if q and (term := q.strip()):
+        escaped = term.replace('\\', '\\\\').replace('%', '\\%').replace('_', '\\_')
+        pattern = f'%{escaped}%'
+        filters.append(or_(
+            Event.description.ilike(pattern, escape='\\'), Event.notes.ilike(pattern, escape='\\'),
+            Event.mood.ilike(pattern, escape='\\'), Event.impact.ilike(pattern, escape='\\'),
+            cast(Event.details, Text).ilike(pattern, escape='\\'),
+        ))
+
+    return db.scalars(select(Event).join(Relationship).where(*filters)
                       .order_by(Event.occurred_at.desc(), Event.id.desc()).limit(limit).offset(offset)).all()
 
 
