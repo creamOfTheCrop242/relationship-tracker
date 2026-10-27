@@ -500,6 +500,8 @@ An opted-in user can also ask one relationship question at a time. The model rec
 
 Add authentication checks, secure API key storage, data export, deletion, error handling, duplicate-analysis protection, timezone handling, and AI settings.
 
+The account privacy controls provide a complete JSON export of the signed-in user's profile, connected sign-in providers, relationship, events, needs and updates, and saved reflections without exporting session tokens. Permanent account deletion requires explicit confirmation, removes the user and all related records through database cascades, clears the browser session, and never affects another user's data.
+
 ### Phase 9: Mobile experience
 
 Add PWA installation, touch-friendly forms, fast logging, push notifications, reminder controls, task deep links, loading states, accessibility, and offline-friendly drafts.

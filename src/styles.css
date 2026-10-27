@@ -30,6 +30,15 @@ label { display: grid; gap: 7px; font-size: 14px; font-weight: 600; }
 .partner-form { display: flex; gap: 16px; align-items: end; margin: 18px 0; }
 .partner-form label { flex: 1; }
 .partner-settings .muted { margin: 0; font-size: 13px; }
+.account-settings { margin-bottom: 32px; padding: 18px; border: 1px solid var(--line); border-radius: 16px; }
+.account-settings summary { cursor: pointer; font-weight: 700; }
+.account-actions { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 18px 0; border-bottom: 1px solid var(--line); }
+.account-actions:last-of-type { border-bottom: 0; }
+.account-actions p { margin: 5px 0 0; font-size: 13px; }
+.account-actions .text-button { flex: 0 0 auto; }
+.danger-zone { color: #7f3026; }
+.destructive-button { background: #a33628; box-shadow: 0 8px 18px rgba(163, 54, 40, .2); }
+.destructive-button:hover { background: #842a20; }
 .timeline { display: grid; gap: 16px; }
 .timeline-filters { display: grid; grid-template-columns: minmax(190px, 2fr) repeat(4, minmax(120px, 1fr)); gap: 14px; align-items: end; margin-bottom: 24px; padding: 18px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.62); }
 .filter-actions { display: flex; align-items: center; gap: 18px; grid-column: 1 / -1; }
@@ -207,6 +216,7 @@ h3 { margin-bottom: 4px; font-size: 17px; letter-spacing: -.02em; }
 
 @media (max-width: 720px) {
   .partner-form { flex-direction: column; align-items: stretch; }
+  .account-actions { align-items: flex-start; flex-direction: column; }
   .entry-meta { align-items: flex-start; flex-direction: column; }
   .ai-panel-heading { align-items: flex-start; flex-direction: column; }
   .reflection-generator, .latest-reflection { grid-template-columns: 1fr; }

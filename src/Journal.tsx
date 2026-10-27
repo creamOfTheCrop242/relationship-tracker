@@ -103,7 +103,7 @@ function eventPath(filters: Filters, offset = 0) {
   return `/events?${params}`
 }
 
-export default function Journal({ name, signOut }: { name: string; signOut: () => void }) {
+export default function Journal({ name, signOut, onAccountDeleted }: { name: string; signOut: () => void; onAccountDeleted: () => void }) {
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
   const [loading, setLoading] = useState(true)
@@ -119,7 +119,10 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
   const [filterDraft, setFilterDraft] = useState<Filters>(emptyFilters)
   const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters)
   const [dashboardVersion, setDashboardVersion] = useState(0)
+  const [deleteConfirmation, setDeleteConfirmation] = useState('')
+  const [accountError, setAccountError] = useState('')
   const dialog = useRef<HTMLDialogElement>(null)
+  const accountDialog = useRef<HTMLDialogElement>(null)
 
   async function replaceEntries(filters: Filters) {
     const rows = await api<Entry[]>(eventPath(filters))
@@ -230,6 +233,37 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
     finally { setLoading(false) }
   }
 
+  async function exportAccount() {
+    setBusy(true)
+    setAccountError('')
+    try {
+      const data = await api<Record<string, unknown>>('/account/export')
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `relationship-tracker-export-${new Date().toISOString().slice(0, 10)}.json`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      URL.revokeObjectURL(url)
+      setNotice('Your data export was downloaded.')
+    } catch (err) { setAccountError((err as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  async function deleteAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (deleteConfirmation !== 'DELETE') return
+    setBusy(true)
+    setAccountError('')
+    try {
+      await api('/account', { method: 'DELETE', body: JSON.stringify({ confirmation: deleteConfirmation }) })
+      accountDialog.current?.close()
+      onAccountDeleted()
+    } catch (err) { setAccountError((err as Error).message) }
+    finally { setBusy(false) }
+  }
+
   const filtersActive = Object.values(appliedFilters).some(Boolean)
 
   return <main className="app-shell">
@@ -248,6 +282,17 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
     <details className="partner-settings"><summary>Partner name (optional)</summary>
       <form onSubmit={savePartner} className="partner-form"><label>What would you like to call your partner?<input value={partner} onChange={e => setPartner(e.target.value)} placeholder="Partner" maxLength={100} disabled={loading || busy} /></label><button className="primary-button" disabled={loading || busy}>Save name</button></form>
       <p className="muted">This journal is private to you. Adding a name does not invite or notify anyone.</p>
+    </details>
+    <details className="account-settings"><summary>Account and privacy</summary>
+      <div className="account-actions">
+        <div><strong>Export your data</strong><p className="muted">Download your profile, journal entries, needs, updates, and saved reflections as JSON.</p></div>
+        <button className="text-button" type="button" disabled={busy} onClick={() => void exportAccount()}>Download export</button>
+      </div>
+      <div className="account-actions danger-zone">
+        <div><strong>Delete your account</strong><p className="muted">Permanently remove your account and all relationship data. This cannot be undone.</p></div>
+        <button className="text-button danger" type="button" disabled={busy} onClick={() => { setDeleteConfirmation(''); setAccountError(''); accountDialog.current?.showModal() }}>Delete account</button>
+      </div>
+      {accountError && <p className="auth-warning" role="alert">{accountError}</p>}
     </details>
     <section className="section-block"><div className="section-heading"><h2>What happened?</h2></div>
       <div className="quick-log-grid">{Object.entries(categories).map(([value, label]) => <button key={value} className="quick-log-button" disabled={loading || busy} onClick={() => openForm(value as Category)}>{label}</button>)}</div>
@@ -289,6 +334,16 @@ export default function Journal({ name, signOut }: { name: string; signOut: () =
           <label>Notes (optional)<textarea name="notes" rows={4} maxLength={10000} defaultValue={editing?.notes ?? ''} /></label>
         </fieldset>
         <div className="form-actions"><button type="button" className="text-button" disabled={busy} onClick={() => dialog.current?.close()}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save entry'}</button></div>
+      </form>
+    </dialog>
+    <dialog ref={accountDialog} className="entry-dialog" aria-labelledby="delete-account-title" onCancel={event => { if (busy) event.preventDefault() }}>
+      <form onSubmit={deleteAccount}>
+        <h2 id="delete-account-title">Delete your account?</h2>
+        <p>This permanently deletes your journal entries, needs, updates, reflections, connected sign-in identities, and active sessions.</p>
+        <p className="muted">Download an export first if you want to keep a copy. Type <strong>DELETE</strong> to confirm.</p>
+        {accountError && <p className="auth-warning" role="alert">{accountError}</p>}
+        <label>Confirmation<input value={deleteConfirmation} onChange={event => setDeleteConfirmation(event.target.value)} autoComplete="off" disabled={busy} /></label>
+        <div className="form-actions"><button type="button" className="text-button" disabled={busy} onClick={() => accountDialog.current?.close()}>Cancel</button><button className="primary-button destructive-button" disabled={busy || deleteConfirmation !== 'DELETE'}>{busy ? 'Deleting…' : 'Permanently delete'}</button></div>
       </form>
     </dialog>
   </main>

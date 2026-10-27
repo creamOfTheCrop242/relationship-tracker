@@ -85,6 +85,10 @@ Migration `0006_ai_reflections` adds the global per-user AI setting, IANA timezo
 
 `POST /api/analysis/advice` answers one question using up to 30 of the signed-in user's recent events and 30 recent need updates. It requires the same global AI opt-in, uses structured output with OpenAI storage disabled, and does not persist the question or response locally.
 
+## Account privacy
+
+`GET /api/account/export` returns a downloadable JSON export containing the signed-in user's profile, connected providers, relationship, events, needs and updates, and saved reflections. Session records and token hashes are excluded. `DELETE /api/account` requires `{"confirmation":"DELETE"}`, permanently deletes the user and all related records through database cascades, and clears the session cookie. Both endpoints require a current session, return `Cache-Control: no-store`, and account deletion requires the configured frontend origin.
+
 For scheduled generation, configure a trusted hourly Heroku Scheduler job:
 
 ```bash
