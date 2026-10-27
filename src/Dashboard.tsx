@@ -18,6 +18,10 @@ type Reflection = {
   friction_factors: string[]; interpretation: string; comparison: string; unresolved_issues: string[];
   suggested_actions: string[]; reflection: string; limitations: string; updated_at: string
 }
+type Advice = {
+  answer: string; considerations: string[]; suggested_actions: string[];
+  limitations: string; safety_note: string | null
+}
 
 const activityLabels: Record<string, string> = { intimacy: 'Intimacy', kindness: 'Kind gesture', conflict: 'Conflict', outing: 'Outing', alcohol: 'Drinking', childcare: 'Childcare' }
 const statusLabels = { met: 'Met', partly_met: 'Partly met', not_met: 'Not met' }
@@ -48,6 +52,8 @@ export default function Dashboard({ partnerName, refreshKey, onLog }: { partnerN
   const [aiNotice, setAiNotice] = useState('')
   const [period, setPeriod] = useState<Reflection['period_type']>('weekly')
   const [anchorDate, setAnchorDate] = useState(localDay(-1))
+  const [adviceQuestion, setAdviceQuestion] = useState('')
+  const [advice, setAdvice] = useState<Advice | null>(null)
 
   useEffect(() => {
     let active = true
@@ -69,6 +75,7 @@ export default function Dashboard({ partnerName, refreshKey, onLog }: { partnerN
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
       const updated = await api<AnalysisSettings>('/analysis/settings', { method: 'PUT', body: JSON.stringify({ enabled, timezone }) })
       setSettings(updated)
+      if (!enabled) setAdvice(null)
       setAiNotice(enabled ? 'AI relationship analysis enabled.' : 'AI relationship analysis disabled. Saved reflections remain available.')
     } catch (err) { setError((err as Error).message) }
     finally { setAiBusy(false) }
@@ -99,6 +106,21 @@ export default function Dashboard({ partnerName, refreshKey, onLog }: { partnerN
     finally { setAiBusy(false) }
   }
 
+  async function askForAdvice(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setAiBusy(true)
+    setError('')
+    setAiNotice('')
+    setAdvice(null)
+    try {
+      const result = await api<Advice>('/analysis/advice', {
+        method: 'POST', body: JSON.stringify({ question: adviceQuestion }),
+      })
+      setAdvice(result)
+    } catch (err) { setError((err as Error).message) }
+    finally { setAiBusy(false) }
+  }
+
   const attentionNeeds = data?.needs.filter(need => need.low_satisfaction || need.stale) ?? []
   const changingNeeds = data?.needs.filter(need => need.trend === 'improving' || need.trend === 'declining') ?? []
 
@@ -116,6 +138,24 @@ export default function Dashboard({ partnerName, refreshKey, onLog }: { partnerN
           <label>Date within period<input type="date" value={anchorDate} onChange={event => setAnchorDate(event.target.value)} required disabled={aiBusy} /></label>
           <button className="primary-button" disabled={aiBusy}>{aiBusy ? 'Generating…' : 'Generate reflection'}</button>
         </form>}
+        {settings?.available && <section className="advice-panel" aria-labelledby="ask-ai-title">
+          <div><p className="eyebrow">ONE-TIME PRIVATE QUESTION</p><h4 id="ask-ai-title">Ask for a perspective</h4></div>
+          <p className="muted">Your question and up to 30 recent events and 30 need updates are sent to OpenAI. This app does not save the question or answer.</p>
+          {!settings.enabled && <p className="auth-warning">Turn on AI analysis above to ask a question.</p>}
+          <form onSubmit={askForAdvice}>
+            <label>What would you like help thinking through?
+              <textarea value={adviceQuestion} onChange={event => setAdviceQuestion(event.target.value)} minLength={3} maxLength={1000} required disabled={aiBusy || !settings.enabled} placeholder="For example: How can I bring up this recurring conflict calmly?" />
+            </label>
+            <div className="advice-form-footer"><span>{adviceQuestion.length}/1000</span><button className="primary-button" disabled={aiBusy || !settings.enabled || adviceQuestion.trim().length < 3}>{aiBusy ? 'Thinking…' : 'Ask AI'}</button></div>
+          </form>
+          {advice && <article className="advice-response" aria-live="polite">
+            <h4>Perspective</h4><p>{advice.answer}</p>
+            {!!advice.considerations.length && <><h4>Things to consider</h4><ul>{advice.considerations.map(item => <li key={item}>{item}</li>)}</ul></>}
+            {!!advice.suggested_actions.length && <><h4>Possible next steps</h4><ul>{advice.suggested_actions.map(item => <li key={item}>{item}</li>)}</ul></>}
+            {advice.safety_note && <p className="auth-warning"><strong>Safety:</strong> {advice.safety_note}</p>}
+            <p className="limitations">{advice.limitations}</p>
+          </article>}
+        </section>}
         {!reflections.length ? <div className="reflection-empty"><p className="muted">No saved reflections yet.</p></div> : <>
           <article className="latest-reflection">
             <div className="reflection-score"><span>{reflections[0].score ?? '—'}</span><small>{reflections[0].score === null ? 'Not enough data' : 'out of 100'}</small></div>

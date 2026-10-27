@@ -141,6 +141,19 @@ h3 { margin-bottom: 4px; font-size: 17px; letter-spacing: -.02em; }
 .analysis-toggle input { width: auto; }
 .reflection-generator { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 12px; margin: 20px 0; padding: 16px; border-radius: 16px; background: #f3eee7; }
 .reflection-generator .primary-button { white-space: nowrap; }
+.advice-panel { margin: 22px 0; padding: 20px; border: 1px solid var(--line); border-radius: 18px; background: rgba(255,255,255,.72); }
+.advice-panel h4 { margin: 0 0 8px; }
+.advice-panel > .muted { font-size: 13px; line-height: 1.5; }
+.advice-panel form { display: grid; gap: 12px; }
+.advice-panel textarea { min-height: 100px; line-height: 1.5; }
+.advice-form-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.advice-form-footer span { color: var(--muted); font-size: 12px; }
+.advice-response { margin-top: 20px; padding: 18px; border-left: 4px solid var(--sage); border-radius: 12px; background: #f3eee7; }
+.advice-response h4 { margin-top: 18px; }
+.advice-response h4:first-child { margin-top: 0; }
+.advice-response p, .advice-response li { line-height: 1.6; }
+.advice-response ul { margin-top: 6px; padding-left: 20px; }
+.advice-response .limitations { margin-bottom: 0; }
 .reflection-empty { padding: 12px 0 0; }
 .latest-reflection { display: grid; grid-template-columns: 150px 1fr; gap: 28px; margin-top: 22px; padding-top: 22px; border-top: 1px solid var(--line); }
 .reflection-score { display: grid; align-content: start; justify-items: center; padding: 22px 12px; border-radius: 18px; background: var(--charcoal); color: white; text-align: center; }
@@ -197,6 +210,7 @@ h3 { margin-bottom: 4px; font-size: 17px; letter-spacing: -.02em; }
   .entry-meta { align-items: flex-start; flex-direction: column; }
   .ai-panel-heading { align-items: flex-start; flex-direction: column; }
   .reflection-generator, .latest-reflection { grid-template-columns: 1fr; }
+  .advice-form-footer { align-items: stretch; flex-direction: column; }
   .reflection-score { justify-items: start; text-align: left; }
   .timeline-filters { grid-template-columns: 1fr; }
   .filter-actions { grid-column: auto; }

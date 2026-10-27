@@ -11,7 +11,7 @@ from backend.app.db import get_db
 from backend.app.main import app
 from backend.app.models import UserSession
 from backend.app.reflection_jobs import due_periods
-from backend.app.reflections import ReflectionContent, generate_content, period_bounds
+from backend.app.reflections import AdviceContent, ReflectionContent, generate_advice_content, generate_content, period_bounds
 from test_database import DatabaseTestCase
 
 
@@ -59,6 +59,43 @@ class ReflectionTests(DatabaseTestCase):
         self.enable()
         with patch('backend.app.reflections.get_settings', return_value=SimpleNamespace(openai_api_key=None, openai_model='test-model')):
             self.assertEqual(self.client.post('/api/reflections/generate', json=request).status_code, 503)
+
+    def test_advice_requires_opt_in_and_uses_only_owner_context(self):
+        question = {'question': ' How can I discuss this calmly? '}
+        with patch('backend.app.reflections.get_settings', return_value=self.ai_settings), \
+             patch('backend.app.reflections.generate_advice_content') as generate:
+            self.assertEqual(self.client.post('/api/analysis/advice', json=question).status_code, 403)
+            generate.assert_not_called()
+        self.enable()
+        self.client.post('/api/events', json={
+            'category': 'conflict', 'description': 'Owner discussion',
+            'occurred_at': '2026-10-01T12:00:00Z', 'details': {},
+        })
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[1])
+        self.client.post('/api/events', json={
+            'category': 'conflict', 'description': 'Other private discussion',
+            'occurred_at': '2026-10-02T12:00:00Z', 'details': {},
+        })
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[0])
+        advice = AdviceContent(
+            answer='Start with a calm observation.', considerations=['Choose a quiet time.'],
+            suggested_actions=['Ask for a short conversation.'], limitations='This uses one recorded event.',
+            safety_note=None,
+        )
+        with patch('backend.app.reflections.get_settings', return_value=self.ai_settings), \
+             patch('backend.app.reflections.generate_advice_content', return_value=advice) as generate:
+            response = self.client.post('/api/analysis/advice', json=question)
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json()['answer'], advice.answer)
+        payload = generate.call_args.args[0]
+        self.assertEqual(payload['question'], 'How can I discuss this calmly?')
+        self.assertEqual([event['description'] for event in payload['context']['events']], ['Owner discussion'])
+        self.assertEqual(self.client.post('/api/analysis/advice', json={'question': '   '}).status_code, 422)
+
+    def test_advice_requires_server_configuration(self):
+        self.enable()
+        with patch('backend.app.reflections.get_settings', return_value=SimpleNamespace(openai_api_key=None, openai_model='test-model')):
+            self.assertEqual(self.client.post('/api/analysis/advice', json={'question': 'What should I consider?'}).status_code, 503)
 
     def test_sparse_reflection_is_stored_without_model_call(self):
         self.enable()
@@ -138,6 +175,17 @@ class ReflectionTests(DatabaseTestCase):
         call = client_class.return_value.responses.parse.call_args
         self.assertEqual(call.kwargs['model'], 'test-model')
         self.assertIs(call.kwargs['text_format'], ReflectionContent)
+        self.assertFalse(call.kwargs['store'])
+
+        advice = AdviceContent(answer='Answer', considerations=[], suggested_actions=[], limitations='Limited context', safety_note=None)
+        with patch('backend.app.reflections.OpenAI') as client_class:
+            client_class.return_value.responses.parse.return_value = SimpleNamespace(output_parsed=advice, id='resp_advice')
+            parsed = generate_advice_content({'question': 'Question'}, 'secret', 'test-model')
+        self.assertEqual(parsed, advice)
+        client_class.assert_called_once_with(api_key='secret', timeout=60.0, max_retries=1)
+        call = client_class.return_value.responses.parse.call_args
+        self.assertEqual(call.kwargs['model'], 'test-model')
+        self.assertIs(call.kwargs['text_format'], AdviceContent)
         self.assertFalse(call.kwargs['store'])
 
     def test_scheduled_periods_run_after_three_local_time(self):

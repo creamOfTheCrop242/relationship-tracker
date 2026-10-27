@@ -83,6 +83,8 @@ Migration `0006_ai_reflections` adds the global per-user AI setting, IANA timezo
 
 `GET` and `PUT /api/analysis/settings` read and update the global opt-in. `POST /api/reflections/generate` manually generates or regenerates a daily, weekly, monthly, or yearly period. `GET /api/reflections` lists saved results, and `DELETE /api/reflections/{id}` removes one. All routes require an unexpired user session and apply ownership from that session. Fewer than two eligible records creates a scoreless coverage report without calling OpenAI.
 
+`POST /api/analysis/advice` answers one question using up to 30 of the signed-in user's recent events and 30 recent need updates. It requires the same global AI opt-in, uses structured output with OpenAI storage disabled, and does not persist the question or response locally.
+
 For scheduled generation, configure a trusted hourly Heroku Scheduler job:
 
 ```bash
