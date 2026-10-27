@@ -323,7 +323,7 @@ Consider discussing how childcare responsibilities are feeling before the issue 
 
 The tone should be supportive, neutral, and direct. Suggestions must be optional, nonjudgmental, and careful about unconfirmed assumptions.
 
-The OpenAI API call must happen inside a protected Netlify Function. The API key must remain in a private Netlify environment variable and must never be included in frontend code.
+The OpenAI API call happens inside the protected FastAPI service on Heroku. The API key remains in a private Heroku environment variable and is never included in frontend code. Requests use structured output and disable OpenAI response storage.
 
 ## Period summaries
 
@@ -491,6 +491,10 @@ The deterministic dashboard shows the latest recorded intimacy, kindness, confli
 ### Phase 7: OpenAI reflections
 
 Build scheduled analysis, manual regeneration, structured AI output, daily reflections, period summaries, confidence, and data coverage.
+
+AI analysis is off by default and can be changed with one global privacy control. Daily, weekly, monthly, and yearly results share one persisted period-summary model, including the score, confidence, coverage, factors, interpretation, comparison, unresolved issues, optional actions, reflection, and limitations. Fewer than two recorded events or need updates produces a coverage report with no score and makes no model request. Manual generation supports any date within a period. An hourly trusted scheduler checks each enabled user's local timezone after 3:00 AM and generates completed daily periods plus weekly, monthly, and yearly periods when due. Existing reflections remain readable when analysis is turned off and can be deleted by the user.
+
+An opted-in user can also ask one relationship question at a time. The model receives the question plus a bounded set of that user's recent events and need updates, returns a grounded perspective with optional next steps and limitations, and does not save the question or answer. Advice must avoid diagnosis, blame, certainty about a partner's motives, and medical or legal guidance; possible immediate danger, abuse, or self-harm receives safety-first guidance.
 
 ### Phase 8: Privacy, backups, and reliability
 

@@ -29,7 +29,7 @@ uvicorn backend.app.main:app --reload --port 8000
 - `GET /api/ready`: database connectivity and required account tables; returns 503 if unavailable or not migrated.
 - `http://localhost:8000/docs`: API documentation.
 
-Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; current journal and needs storage requires migration `0005_need_integrity`.
+Run `npm run dev` alongside FastAPI. Vite proxies `/api` requests to port 8000. Sign-in requires configured provider credentials and registered callbacks; AI reflection storage requires migration `0006_ai_reflections`.
 
 ## Database migrations
 
@@ -76,3 +76,19 @@ Migration `0004_relationship_needs` adds `relationship_needs` and `need_updates`
 Migration `0005_need_integrity` adds database constraints for valid cadence and partner-confirmation combinations.
 
 `GET /api/dashboard` returns the signed-in user's latest event in each dashboard category, latest conflict that records someone as upset, five recent events, and active need summaries. Need summaries flag a latest satisfaction rating of 1–2, flag records with no update in the last 14 days, and calculate a trend after four updates by comparing the latest two satisfaction ratings with the previous two. The route uses session ownership for every event and need query.
+
+## AI reflections
+
+Migration `0006_ai_reflections` adds the global per-user AI setting, IANA timezone, and persisted `relationship_summaries`. Configure `OPENAI_API_KEY` only in the backend environment and optionally set `OPENAI_MODEL` (default `gpt-6-astra`). The implementation uses the Responses API with Pydantic Structured Outputs and `store=False`, following the [official OpenAI Structured Outputs guide](https://developers.openai.com/api/docs/guides/structured-outputs?api-mode=responses).
+
+`GET` and `PUT /api/analysis/settings` read and update the global opt-in. `POST /api/reflections/generate` manually generates or regenerates a daily, weekly, monthly, or yearly period. `GET /api/reflections` lists saved results, and `DELETE /api/reflections/{id}` removes one. All routes require an unexpired user session and apply ownership from that session. Fewer than two eligible records creates a scoreless coverage report without calling OpenAI.
+
+`POST /api/analysis/advice` answers one question using up to 30 of the signed-in user's recent events and 30 recent need updates. It requires the same global AI opt-in, uses structured output with OpenAI storage disabled, and does not persist the question or response locally.
+
+For scheduled generation, configure a trusted hourly Heroku Scheduler job:
+
+```bash
+python -m app.reflection_jobs
+```
+
+The job checks each enabled user's local timezone and generates a completed daily period after 3:00 AM. It also generates the completed week on Monday, month on the first day, and year on January 1. Existing period rows prevent duplicate scheduled calls.
