@@ -23,7 +23,7 @@ export default function App() {
     } catch (err) { window.alert((err as Error).message) }
   }
   if (loading) return <main className="auth-shell"><p role="status">Opening your private journal…</p></main>
-  if (user) return <Journal name={user.name?.split(' ')[0] ?? 'there'} signOut={() => void signOut()} />
+  if (user) return <Journal name={user.name?.split(' ')[0] ?? 'there'} signOut={() => void signOut()} onAccountDeleted={() => { setUser(null); setError(null) }} />
   return <main className="auth-shell"><div className="auth-card">
     <div className="brand-mark" aria-hidden="true">r</div><p className="eyebrow">PRIVATE JOURNAL</p><h1>Our Notes</h1>
     <p className="auth-intro">A quiet place to notice what is happening, remember what matters, and take thoughtful action.</p>
