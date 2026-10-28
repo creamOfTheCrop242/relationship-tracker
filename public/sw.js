@@ -1,5 +1,5 @@
-const CACHE_NAME = 'our-notes-v1'
-const APP_SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png']
+const CACHE_NAME = 'so-about-us-v2'
+const APP_SHELL = ['/', '/manifest.webmanifest?v=2', '/icons/icon-192.png', '/icons/icon-512.png']
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(async cache => {
