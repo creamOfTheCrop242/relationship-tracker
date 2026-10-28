@@ -118,7 +118,7 @@ export default function Tasks({ onLog }: { onLog: () => void }) {
 
   const active = tasks.filter(task => task.status === 'pending' || task.status === 'snoozed')
   const history = tasks.filter(task => task.status === 'completed' || task.status === 'dismissed')
-  return <section className="section-block tasks-section">
+  return <section className="section-block tasks-section" id="tasks">
     <div className="section-heading"><div><p className="eyebrow">THOUGHTFUL ACTIONS</p><h2>Reminders and tasks</h2></div><button type="button" className="text-button" disabled={loading || busy} onClick={() => void load()}>Refresh</button></div>
     <p className="muted">Plan something yourself or let cadence reminders turn unmet check-ins into optional tasks.</p>
     {error && <p className="auth-warning" role="alert">{error}</p>}<p className="save-notice" role="status">{notice}</p>

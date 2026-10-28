@@ -192,7 +192,7 @@ export default function Needs({ partnerName, refreshKey, onChanged }: { partnerN
     finally { setBusy(false) }
   }
 
-  return <section className="section-block needs-section">
+  return <section className="section-block needs-section" id="needs">
     <div className="section-heading"><div><p className="eyebrow">WHAT MATTERS</p><h2>Relationship needs</h2></div><button className="primary-button" disabled={loading || busy} onClick={() => openNeed()}>＋ Add need</button></div>
     <p className="muted needs-intro">Cadence describes what you want, not an obligation or quota.</p>
     <label className="archive-toggle"><input type="checkbox" checked={showArchived} onChange={event => setShowArchived(event.target.checked)} disabled={loading || busy} /> Show archived needs</label>

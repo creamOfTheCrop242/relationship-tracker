@@ -52,7 +52,7 @@ self.addEventListener('fetch', event => {
 
 self.addEventListener('push', event => {
   const data = event.data?.json() ?? {}
-  event.waitUntil(self.registration.showNotification(data.title ?? 'Our Notes', {
+  event.waitUntil(self.registration.showNotification(data.title ?? 'So About Us', {
     body: data.body ?? 'A relationship task is ready.',
     icon: '/icons/icon-192.png',
     badge: '/icons/icon-192.png',

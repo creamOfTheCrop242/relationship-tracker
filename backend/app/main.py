@@ -47,7 +47,7 @@ app.add_middleware(
 
 @app.get("/api/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "service": "relationship-tracker-api"}
+    return {"status": "ok", "service": "so-about-us-api"}
 
 
 @app.get("/api/ready")

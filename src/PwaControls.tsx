@@ -39,6 +39,6 @@ export default function PwaControls() {
   if (online && !installPrompt) return null
   return <aside className="pwa-controls" aria-live="polite">
     {!online && <span><strong>You’re offline.</strong> Drafts still save on this device.</span>}
-    {installPrompt && <button type="button" onClick={() => void install()}>Install Our Notes</button>}
+    {installPrompt && <button type="button" onClick={() => void install()}>Install So About Us</button>}
   </aside>
 }

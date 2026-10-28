@@ -5,7 +5,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Relationship Tracker API"
+    app_name: str = "So About Us API"
     frontend_url: str = "http://localhost:5173"
     database_url: str | None = None
     session_secret: str

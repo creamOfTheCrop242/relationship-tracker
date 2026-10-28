@@ -303,7 +303,7 @@ export default function Journal({ name, signOut, onProfiles, onAccountDeleted }:
       const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }))
       const link = document.createElement('a')
       link.href = url
-      link.download = `relationship-tracker-export-${new Date().toISOString().slice(0, 10)}.json`
+      link.download = `so-about-us-export-${new Date().toISOString().slice(0, 10)}.json`
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -338,36 +338,24 @@ export default function Journal({ name, signOut, onProfiles, onAccountDeleted }:
 
   return <><PwaControls /><main className="app-shell">
     <header className="topbar">
-      <div className="brand-mark" aria-hidden="true">r</div>
-      <div><p className="eyebrow">PRIVATE JOURNAL</p><h1>Our Notes</h1></div>
+      <div className="brand-mark" aria-hidden="true">s</div>
+      <div><p className="eyebrow">PRIVATE JOURNAL</p><h1>So About Us</h1></div>
       <div className="topbar-links"><button className="text-button" onClick={onProfiles} disabled={busy}>Profiles</button><button className="text-button" onClick={signOut} disabled={busy}>Sign out</button></div>
     </header>
     <section className="welcome-row">
       <div><p className="eyebrow">YOU AND {(relationship?.partner_name ?? 'Partner').toUpperCase()}</p><h2>Welcome, {name}</h2><p className="muted">Notice what happened. Remember what matters.</p></div>
       <button className="primary-button" disabled={loading || busy} onClick={() => openForm('kindness')}>＋ Log something</button>
     </section>
+    <nav className="dashboard-nav" aria-label="Dashboard sections">
+      <a href="#quick-log">Log</a><a href="#overview">Overview</a><a href="#ai-reflections">AI</a><a href="#timeline">Timeline</a><a href="#tasks">Tasks</a><a href="#needs">Needs</a><a href="#settings">Settings</a>
+    </nav>
+    <section className="section-block" id="quick-log"><div className="section-heading"><div><p className="eyebrow">QUICK ENTRY</p><h2>What happened?</h2></div></div>
+      <div className="quick-log-grid">{Object.entries(categories).map(([value, label]) => <button key={value} className="quick-log-button" disabled={loading || busy} onClick={() => openForm(value as Category)}>{label}</button>)}</div>
+    </section>
     <Dashboard partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} />
     {error && <div className="auth-warning" role="alert">{error} <button className="text-button" disabled={busy || loading} onClick={() => void load()}>Retry</button></div>}
     <p className="save-notice" role="status">{notice}</p>
-    <details className="partner-settings"><summary>Partner name (optional)</summary>
-      <form onSubmit={savePartner} className="partner-form"><label>What would you like to call your partner?<input value={partner} onChange={e => setPartner(e.target.value)} placeholder="Partner" maxLength={100} disabled={loading || busy} /></label><button className="primary-button" disabled={loading || busy}>Save name</button></form>
-      <p className="muted">This journal is private to you. Adding a name does not invite or notify anyone.</p>
-    </details>
-    <details className="account-settings"><summary>Account and privacy</summary>
-      <div className="account-actions">
-        <div><strong>Export your data</strong><p className="muted">Download your profile, journal entries, needs, updates, and saved reflections as JSON.</p></div>
-        <button className="text-button" type="button" disabled={busy} onClick={() => void exportAccount()}>Download export</button>
-      </div>
-      <div className="account-actions danger-zone">
-        <div><strong>Delete your account</strong><p className="muted">Permanently remove your account and all relationship data. This cannot be undone.</p></div>
-        <button className="text-button danger" type="button" disabled={busy} onClick={() => { setDeleteConfirmation(''); setAccountError(''); accountDialog.current?.showModal() }}>Delete account</button>
-      </div>
-      {accountError && <p className="auth-warning" role="alert">{accountError}</p>}
-    </details>
-    <section className="section-block"><div className="section-heading"><h2>What happened?</h2></div>
-      <div className="quick-log-grid">{Object.entries(categories).map(([value, label]) => <button key={value} className="quick-log-button" disabled={loading || busy} onClick={() => openForm(value as Category)}>{label}</button>)}</div>
-    </section>
-    <section className="section-block"><div className="section-heading"><div><p className="eyebrow">RECENT ACTIVITY</p><h2>Your timeline</h2></div></div>
+    <section className="section-block" id="timeline"><div className="section-heading"><div><p className="eyebrow">JOURNAL</p><h2>Your timeline</h2></div></div>
       <form className="timeline-filters" onSubmit={applyFilters}>
         <label className="filter-search">Search<input type="search" maxLength={200} value={filterDraft.q} onChange={event => setFilterDraft(current => ({ ...current, q: event.target.value }))} placeholder="Words in an entry" disabled={loading || busy} /></label>
         <label>Category<select value={filterDraft.category} onChange={event => setFilterDraft(current => ({ ...current, category: event.target.value as Filters['category'] }))} disabled={loading || busy}><option value="">All categories</option>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
@@ -388,8 +376,25 @@ export default function Journal({ name, signOut, onProfiles, onAccountDeleted }:
       </article>)}</div>}
       {hasMore && !loading && <button className="primary-button load-more" disabled={busy} onClick={() => void loadMore()}>{busy ? 'Loading…' : 'Load older entries'}</button>}
     </section>
-    <Needs partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} onChanged={() => { setDashboardVersion(value => value + 1); void api<LinkNeed[]>('/needs?include_archived=true').then(setLinkNeeds) }} />
     <Tasks onLog={() => openForm('kindness')} />
+    <Needs partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} onChanged={() => { setDashboardVersion(value => value + 1); void api<LinkNeed[]>('/needs?include_archived=true').then(setLinkNeeds) }} />
+    <section className="settings-section" id="settings"><div className="section-heading"><div><p className="eyebrow">PREFERENCES</p><h2>Settings</h2></div></div>
+    <details className="partner-settings"><summary>Partner name (optional)</summary>
+      <form onSubmit={savePartner} className="partner-form"><label>What would you like to call your partner?<input value={partner} onChange={e => setPartner(e.target.value)} placeholder="Partner" maxLength={100} disabled={loading || busy} /></label><button className="primary-button" disabled={loading || busy}>Save name</button></form>
+      <p className="muted">This journal is private to you. Adding a name does not invite or notify anyone.</p>
+    </details>
+    <details className="account-settings"><summary>Account and privacy</summary>
+      <div className="account-actions">
+        <div><strong>Export your data</strong><p className="muted">Download your profile, journal entries, needs, updates, and saved reflections as JSON.</p></div>
+        <button className="text-button" type="button" disabled={busy} onClick={() => void exportAccount()}>Download export</button>
+      </div>
+      <div className="account-actions danger-zone">
+        <div><strong>Delete your account</strong><p className="muted">Permanently remove your account and all relationship data. This cannot be undone.</p></div>
+        <button className="text-button danger" type="button" disabled={busy} onClick={() => { setDeleteConfirmation(''); setAccountError(''); accountDialog.current?.showModal() }}>Delete account</button>
+      </div>
+      {accountError && <p className="auth-warning" role="alert">{accountError}</p>}
+    </details>
+    </section>
     <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title" onCancel={event => { if (busy) event.preventDefault() }}>
       <form key={formVersion} ref={entryForm} onSubmit={save} onInput={scheduleDraftSave}>
         <h2 id="entry-title">{editing ? 'Edit entry' : 'Log a moment'}</h2>

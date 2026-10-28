@@ -124,11 +124,25 @@ export default function Dashboard({ partnerName, refreshKey }: { partnerName: st
   const attentionNeeds = data?.needs.filter(need => need.low_satisfaction || need.stale) ?? []
   const changingNeeds = data?.needs.filter(need => need.trend === 'improving' || need.trend === 'declining') ?? []
 
-  return <section className="section-block dashboard-section">
+  return <section className="section-block dashboard-section" id="overview">
     <div className="section-heading"><div><p className="eyebrow">AT A GLANCE</p><h2>Your dashboard</h2></div></div>
     {error && <p className="auth-warning" role="alert">{error}</p>}
     {loading ? <p role="status">Loading your dashboard…</p> : data && <>
-      <section className="ai-panel" aria-labelledby="ai-reflection-title">
+      <div className="dashboard-group-heading"><div><p className="eyebrow">RECORDED MOMENTS</p><h3>Latest activity</h3></div><span>Based on your journal</span></div>
+      <div className="activity-grid">{Object.entries(activityLabels).map(([category, label]) => {
+        const event = data.latest_events[category]
+        return <article className="activity-card" key={category}><p className="eyebrow">LAST {label.toUpperCase()}</p>{event ? <><h3>{eventDate(event.occurred_at)}</h3><p>{event.description}</p></> : <p className="muted">No entry recorded</p>}</article>
+      })}<article className="activity-card"><p className="eyebrow">LAST TIME SOMEONE WAS UPSET</p>{data.latest_upset ? <><h3>{eventDate(data.latest_upset.occurred_at)}</h3><p>{data.latest_upset.description}</p></> : <p className="muted">No entry recorded</p>}</article></div>
+
+      <div className="dashboard-group-heading"><div><p className="eyebrow">WHAT MATTERS</p><h3>Needs overview</h3></div><span>Based on your updates</span></div>
+      <div className="dashboard-columns">
+        <article className="dashboard-panel"><div className="dashboard-panel-heading"><h3>Current needs</h3><span>{data.needs.length}</span></div>{!data.needs.length ? <p className="muted">No active needs yet.</p> : <ul className="dashboard-need-list">{data.needs.slice(0, 5).map(need => <li key={need.id}><div><strong>{need.name}</strong><span>{need.person === 'me' ? 'For me' : `For ${partnerName}`}</span></div><span>{need.latest_status ? statusLabels[need.latest_status] : 'No update'}</span></li>)}</ul>}</article>
+        <article className="dashboard-panel"><div className="dashboard-panel-heading"><h3>Needs attention</h3><span>{attentionNeeds.length}</span></div>{!attentionNeeds.length ? <p className="muted">Nothing is flagged from your recorded updates.</p> : <div className="insight-list">{attentionNeeds.map(need => <p key={need.id}><strong>{need.name}</strong><span>{[need.low_satisfaction ? `Recent satisfaction: ${need.latest_satisfaction}/5` : '', need.stale ? need.latest_update_on ? `No update since ${new Date(`${need.latest_update_on}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'medium' })}` : 'No update recorded' : ''].filter(Boolean).join(' · ')}</span></p>)}</div>}</article>
+        <article className="dashboard-panel"><div className="dashboard-panel-heading"><h3>Recent trends</h3><span>{changingNeeds.length}</span></div>{!changingNeeds.length ? <p className="muted">Four updates are needed before a trend appears.</p> : <div className="insight-list">{changingNeeds.map(need => <p key={need.id}><strong>{need.name}</strong><span className={`trend ${need.trend}`}>{need.trend === 'improving' ? 'Trending better' : 'Trending lower'}</span></p>)}</div>}</article>
+      </div>
+
+      <article className="recent-summary"><h3>Recent activity</h3>{!data.recent_events.length ? <p className="muted">No entries recorded yet.</p> : <ol>{data.recent_events.map(event => <li key={event.id}><span className="status-pill">{activityLabels[event.category] ?? event.category}</span><div><strong>{event.description}</strong><time dateTime={event.occurred_at}>{eventDate(event.occurred_at)}</time></div></li>)}</ol>}</article>
+      <section className="ai-panel" id="ai-reflections" aria-labelledby="ai-reflection-title">
         <div className="ai-panel-heading"><div><p className="eyebrow">PRIVATE AI ANALYSIS</p><h3 id="ai-reflection-title">Relationship reflection</h3></div><label className="analysis-toggle"><input type="checkbox" checked={settings?.enabled ?? false} onChange={event => void toggleAnalysis(event.target.checked)} disabled={aiBusy || (!settings?.available && !settings?.enabled)} /> {settings?.enabled ? 'On' : 'Off'}</label></div>
         {!settings?.available && <p className="auth-warning">AI analysis is not configured on the server yet.</p>}
         <p className="muted">When enabled, eligible events and need updates are sent securely to OpenAI for reflections. Profiles, active needs, requests, and recent activity may also be used to create your scheduled task suggestion. Missing days remain unknown.</p>
@@ -138,7 +152,14 @@ export default function Dashboard({ partnerName, refreshKey }: { partnerName: st
           <label>Date within period<input type="date" value={anchorDate} onChange={event => setAnchorDate(event.target.value)} required disabled={aiBusy} /></label>
           <button className="primary-button" disabled={aiBusy}>{aiBusy ? 'Generating…' : 'Generate reflection'}</button>
         </form>}
-        {settings?.available && <section className="advice-panel" aria-labelledby="ask-ai-title">
+        {!reflections.length ? <div className="reflection-empty"><p className="muted">No saved reflections yet.</p></div> : <>
+          <article className="latest-reflection">
+            <div className="reflection-score"><span>{reflections[0].score ?? '—'}</span><small>{reflections[0].score === null ? 'Not enough data' : 'out of 100'}</small></div>
+            <div className="reflection-copy"><p className="eyebrow">{reflections[0].period_type.toUpperCase()} · {reflections[0].period_start} TO {inclusiveEnd(reflections[0].period_end)} · {reflections[0].confidence.toUpperCase()} CONFIDENCE</p><h4>What the data shows</h4><p>{reflections[0].data_summary}</p>{!!reflections[0].positive_factors.length && <><h4>Positive factors</h4><ul>{reflections[0].positive_factors.map(factor => <li key={factor}>{factor}</li>)}</ul></>}{!!reflections[0].friction_factors.length && <><h4>Friction factors</h4><ul>{reflections[0].friction_factors.map(factor => <li key={factor}>{factor}</li>)}</ul></>}<h4>Interpretation</h4><p>{reflections[0].interpretation}</p><h4>Comparison</h4><p>{reflections[0].comparison}</p>{!!reflections[0].unresolved_issues.length && <><h4>Unresolved issues</h4><ul>{reflections[0].unresolved_issues.map(issue => <li key={issue}>{issue}</li>)}</ul></>}<h4>Reflection</h4><p>{reflections[0].reflection}</p>{!!reflections[0].suggested_actions.length && <><h4>Optional next steps</h4><ul>{reflections[0].suggested_actions.map(action => <li key={action}>{action}</li>)}</ul></>}<p className="coverage-note">Coverage: {reflections[0].coverage_days} of {reflections[0].total_days} days · {reflections[0].events_analyzed} events · {reflections[0].need_updates_analyzed} need updates</p><p className="limitations">{reflections[0].limitations}</p></div>
+          </article>
+          <details className="reflection-history"><summary>Saved reflection history ({reflections.length})</summary><div>{reflections.map(reflection => <article key={reflection.id}><div><strong>{reflection.period_type[0].toUpperCase() + reflection.period_type.slice(1)}</strong><span>{reflection.period_start} to {inclusiveEnd(reflection.period_end)} · {reflection.score ?? 'Not enough data'}</span></div><button className="text-button danger" disabled={aiBusy} onClick={() => void removeReflection(reflection)}>Delete</button></article>)}</div></details>
+        </>}
+        {settings?.available && <details className="advice-disclosure"><summary>Ask AI for a perspective</summary><section className="advice-panel" aria-labelledby="ask-ai-title">
           <div><p className="eyebrow">ONE-TIME PRIVATE QUESTION</p><h4 id="ask-ai-title">Ask for a perspective</h4></div>
           <p className="muted">Your question and up to 30 recent events and 30 need updates are sent to OpenAI. This app does not save the question or answer.</p>
           {!settings.enabled && <p className="auth-warning">Turn on AI analysis above to ask a question.</p>}
@@ -155,27 +176,8 @@ export default function Dashboard({ partnerName, refreshKey }: { partnerName: st
             {advice.safety_note && <p className="auth-warning"><strong>Safety:</strong> {advice.safety_note}</p>}
             <p className="limitations">{advice.limitations}</p>
           </article>}
-        </section>}
-        {!reflections.length ? <div className="reflection-empty"><p className="muted">No saved reflections yet.</p></div> : <>
-          <article className="latest-reflection">
-            <div className="reflection-score"><span>{reflections[0].score ?? '—'}</span><small>{reflections[0].score === null ? 'Not enough data' : 'out of 100'}</small></div>
-            <div className="reflection-copy"><p className="eyebrow">{reflections[0].period_type.toUpperCase()} · {reflections[0].period_start} TO {inclusiveEnd(reflections[0].period_end)} · {reflections[0].confidence.toUpperCase()} CONFIDENCE</p><h4>What the data shows</h4><p>{reflections[0].data_summary}</p>{!!reflections[0].positive_factors.length && <><h4>Positive factors</h4><ul>{reflections[0].positive_factors.map(factor => <li key={factor}>{factor}</li>)}</ul></>}{!!reflections[0].friction_factors.length && <><h4>Friction factors</h4><ul>{reflections[0].friction_factors.map(factor => <li key={factor}>{factor}</li>)}</ul></>}<h4>Interpretation</h4><p>{reflections[0].interpretation}</p><h4>Comparison</h4><p>{reflections[0].comparison}</p>{!!reflections[0].unresolved_issues.length && <><h4>Unresolved issues</h4><ul>{reflections[0].unresolved_issues.map(issue => <li key={issue}>{issue}</li>)}</ul></>}<h4>Reflection</h4><p>{reflections[0].reflection}</p>{!!reflections[0].suggested_actions.length && <><h4>Optional next steps</h4><ul>{reflections[0].suggested_actions.map(action => <li key={action}>{action}</li>)}</ul></>}<p className="coverage-note">Coverage: {reflections[0].coverage_days} of {reflections[0].total_days} days · {reflections[0].events_analyzed} events · {reflections[0].need_updates_analyzed} need updates</p><p className="limitations">{reflections[0].limitations}</p></div>
-          </article>
-          <details className="reflection-history"><summary>Saved reflection history ({reflections.length})</summary><div>{reflections.map(reflection => <article key={reflection.id}><div><strong>{reflection.period_type[0].toUpperCase() + reflection.period_type.slice(1)}</strong><span>{reflection.period_start} to {inclusiveEnd(reflection.period_end)} · {reflection.score ?? 'Not enough data'}</span></div><button className="text-button danger" disabled={aiBusy} onClick={() => void removeReflection(reflection)}>Delete</button></article>)}</div></details>
-        </>}
+        </section></details>}
       </section>
-      <div className="activity-grid">{Object.entries(activityLabels).map(([category, label]) => {
-        const event = data.latest_events[category]
-        return <article className="activity-card" key={category}><p className="eyebrow">LAST {label.toUpperCase()}</p>{event ? <><h3>{eventDate(event.occurred_at)}</h3><p>{event.description}</p></> : <p className="muted">No entry recorded</p>}</article>
-      })}<article className="activity-card"><p className="eyebrow">LAST TIME SOMEONE WAS UPSET</p>{data.latest_upset ? <><h3>{eventDate(data.latest_upset.occurred_at)}</h3><p>{data.latest_upset.description}</p></> : <p className="muted">No entry recorded</p>}</article></div>
-
-      <div className="dashboard-columns">
-        <article className="dashboard-panel"><div className="dashboard-panel-heading"><h3>Current needs</h3><span>{data.needs.length}</span></div>{!data.needs.length ? <p className="muted">No active needs yet.</p> : <ul className="dashboard-need-list">{data.needs.slice(0, 5).map(need => <li key={need.id}><div><strong>{need.name}</strong><span>{need.person === 'me' ? 'For me' : `For ${partnerName}`}</span></div><span>{need.latest_status ? statusLabels[need.latest_status] : 'No update'}</span></li>)}</ul>}</article>
-        <article className="dashboard-panel"><div className="dashboard-panel-heading"><h3>Needs attention</h3><span>{attentionNeeds.length}</span></div>{!attentionNeeds.length ? <p className="muted">Nothing is flagged from your recorded updates.</p> : <div className="insight-list">{attentionNeeds.map(need => <p key={need.id}><strong>{need.name}</strong><span>{[need.low_satisfaction ? `Recent satisfaction: ${need.latest_satisfaction}/5` : '', need.stale ? need.latest_update_on ? `No update since ${new Date(`${need.latest_update_on}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'medium' })}` : 'No update recorded' : ''].filter(Boolean).join(' · ')}</span></p>)}</div>}</article>
-        <article className="dashboard-panel"><div className="dashboard-panel-heading"><h3>Recent trends</h3><span>{changingNeeds.length}</span></div>{!changingNeeds.length ? <p className="muted">Four updates are needed before a trend appears.</p> : <div className="insight-list">{changingNeeds.map(need => <p key={need.id}><strong>{need.name}</strong><span className={`trend ${need.trend}`}>{need.trend === 'improving' ? 'Trending better' : 'Trending lower'}</span></p>)}</div>}</article>
-      </div>
-
-      <article className="recent-summary"><h3>Recent activity</h3>{!data.recent_events.length ? <p className="muted">No entries recorded yet.</p> : <ol>{data.recent_events.map(event => <li key={event.id}><span className="status-pill">{activityLabels[event.category] ?? event.category}</span><div><strong>{event.description}</strong><time dateTime={event.occurred_at}>{eventDate(event.occurred_at)}</time></div></li>)}</ol>}</article>
     </>}
   </section>
 }

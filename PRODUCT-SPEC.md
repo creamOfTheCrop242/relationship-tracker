@@ -1,8 +1,8 @@
-# Relationship Tracker Product Specification
+# So About Us Product Specification
 
 ## Product purpose
 
-Relationship Tracker is a private, personal relationship journal. It helps one user record relationship events, track personal and perceived partner needs, review patterns over time, and receive AI-generated reflections.
+So About Us is a private, personal relationship journal. It helps one user record relationship events, track personal and perceived partner needs, review patterns over time, and receive AI-generated reflections.
 
 The first version is for one user only. Partner access may be added later.
 

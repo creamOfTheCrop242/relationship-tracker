@@ -73,7 +73,7 @@ def export_account(user: User = Depends(current_user), db: Session = Depends(get
         },
         'relationship': relationship_data,
     }
-    filename = f'relationship-tracker-export-{datetime.now(timezone.utc).date().isoformat()}.json'
+    filename = f'so-about-us-export-{datetime.now(timezone.utc).date().isoformat()}.json'
     return JSONResponse(jsonable_encoder(payload), headers={
         'Cache-Control': 'no-store',
         'Content-Disposition': f'attachment; filename="{filename}"',

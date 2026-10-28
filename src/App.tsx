@@ -41,7 +41,7 @@ export default function App() {
   if (user && view === 'profiles') return <Profiles onBack={() => navigate('journal')} signOut={() => void signOut()} />
   if (user) return <Journal name={user.name?.split(' ')[0] ?? 'there'} onProfiles={() => navigate('profiles')} signOut={() => void signOut()} onAccountDeleted={() => { setUser(null); setError(null) }} />
   return <><PwaControls /><main className="auth-shell"><div className="auth-card">
-    <div className="brand-mark" aria-hidden="true">r</div><p className="eyebrow">PRIVATE JOURNAL</p><h1>Our Notes</h1>
+    <div className="brand-mark" aria-hidden="true">s</div><p className="eyebrow">PRIVATE JOURNAL</p><h1>So About Us</h1>
     <p className="auth-intro">A quiet place to notice what is happening, remember what matters, and take thoughtful action.</p>
     {error && <p className="auth-warning" role="alert">{error}</p>}
     <div className="auth-actions">
