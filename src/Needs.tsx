@@ -3,11 +3,13 @@ import type { FormEvent } from 'react'
 import { api } from './api'
 
 type NeedUpdate = { id: string; occurred_on: string; status: 'met' | 'partly_met' | 'not_met'; what_happened: string; satisfaction: number; notes: string | null }
+type NeedRequest = { id: string; title: string; description: string | null; desired_amount: number | null; desired_period: 'per_day' | 'per_week' | 'per_month' | 'custom' | 'as_needed' | 'no_target'; custom_period_days: number | null; confirmed_by_person: 'yes' | 'no' | 'unknown'; active: boolean }
+type LinkedEntry = { id: string; need_id: string | null; request_id: string | null; category: string; description: string; occurred_at: string }
 type Need = {
   id: string; person: 'me' | 'partner'; name: string; description: string | null; why_matters: string | null;
   importance: 'low' | 'medium' | 'high'; desired_amount: number | null;
   desired_period: 'per_day' | 'per_week' | 'per_month' | 'custom' | 'as_needed' | 'no_target';
-  custom_period_days: number | null; confirmed_by_partner: 'yes' | 'no' | 'unknown'; active: boolean; updates: NeedUpdate[]
+  custom_period_days: number | null; confirmed_by_partner: 'yes' | 'no' | 'unknown'; active: boolean; reminders_enabled: boolean; updates: NeedUpdate[]; requests: NeedRequest[]
 }
 
 const targetedPeriods = new Set(['per_day', 'per_week', 'per_month', 'custom'])
@@ -16,16 +18,18 @@ const today = () => {
   return new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
 }
 const labels = { met: 'Met', partly_met: 'Partly met', not_met: 'Not met' }
+const categoryLabels: Record<string, string> = { intimacy: 'Intimacy', kindness: 'Kindness', conflict: 'Conflict', outing: 'Outing', alcohol: 'Alcohol', childcare: 'Childcare', custom: 'Custom' }
 
-function cadence(need: Need) {
-  if (need.desired_period === 'as_needed') return 'As needed'
-  if (need.desired_period === 'no_target') return 'No cadence target'
-  const period = need.desired_period === 'custom' ? `every ${need.custom_period_days} days` : need.desired_period.replace('per_', 'per ')
-  return `${need.desired_amount} ${need.desired_amount === 1 ? 'time' : 'times'} ${period}`
+function cadence(item: Need | NeedRequest) {
+  if (item.desired_period === 'as_needed') return 'As needed'
+  if (item.desired_period === 'no_target') return 'No cadence target'
+  const period = item.desired_period === 'custom' ? `every ${item.custom_period_days} days` : item.desired_period.replace('per_', 'per ')
+  return `${item.desired_amount} ${item.desired_amount === 1 ? 'time' : 'times'} ${period}`
 }
 
-export default function Needs({ partnerName, onChanged }: { partnerName: string; onChanged: () => void }) {
+export default function Needs({ partnerName, refreshKey, onChanged }: { partnerName: string; refreshKey: number; onChanged: () => void }) {
   const [needs, setNeeds] = useState<Need[]>([])
+  const [linkedEntries, setLinkedEntries] = useState<LinkedEntry[]>([])
   const [showArchived, setShowArchived] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
@@ -34,21 +38,32 @@ export default function Needs({ partnerName, onChanged }: { partnerName: string;
   const [editing, setEditing] = useState<Need | null>(null)
   const [selectedNeed, setSelectedNeed] = useState<Need | null>(null)
   const [editingUpdate, setEditingUpdate] = useState<NeedUpdate | null>(null)
+  const [editingRequest, setEditingRequest] = useState<NeedRequest | null>(null)
   const [person, setPerson] = useState<'me' | 'partner'>('me')
   const [period, setPeriod] = useState<Need['desired_period']>('no_target')
   const [formVersion, setFormVersion] = useState(0)
   const [updateVersion, setUpdateVersion] = useState(0)
+  const [requestPeriod, setRequestPeriod] = useState<NeedRequest['desired_period']>('no_target')
+  const [requestVersion, setRequestVersion] = useState(0)
   const needDialog = useRef<HTMLDialogElement>(null)
   const updateDialog = useRef<HTMLDialogElement>(null)
+  const requestDialog = useRef<HTMLDialogElement>(null)
 
   async function load(archived = showArchived) {
     setLoading(true)
     setError('')
-    try { setNeeds(await api<Need[]>(`/needs${archived ? '?include_archived=true' : ''}`)) }
+    try {
+      const [rows, entries] = await Promise.all([
+        api<Need[]>(`/needs${archived ? '?include_archived=true' : ''}`),
+        api<LinkedEntry[]>('/events?limit=100'),
+      ])
+      setNeeds(rows)
+      setLinkedEntries(entries.filter(entry => entry.need_id))
+    }
     catch (err) { setError((err as Error).message) }
     finally { setLoading(false) }
   }
-  useEffect(() => { void load(showArchived) }, [showArchived])
+  useEffect(() => { void load(showArchived) }, [showArchived, refreshKey])
 
   function openNeed(need: Need | null = null) {
     setEditing(need)
@@ -69,6 +84,7 @@ export default function Needs({ partnerName, onChanged }: { partnerName: string;
       importance: String(data.get('importance')), desired_amount: targeted ? Number(data.get('desired_amount')) : null,
       desired_period: period, custom_period_days: period === 'custom' ? Number(data.get('custom_period_days')) : null,
       confirmed_by_partner: person === 'partner' ? String(data.get('confirmed_by_partner')) : 'unknown', active: editing?.active ?? true,
+      reminders_enabled: data.get('reminders_enabled') === 'on',
     }
     setBusy(true)
     setError('')
@@ -134,6 +150,48 @@ export default function Needs({ partnerName, onChanged }: { partnerName: string;
     finally { setBusy(false) }
   }
 
+  function openRequest(need: Need, request: NeedRequest | null = null) {
+    setSelectedNeed(need)
+    setEditingRequest(request)
+    setRequestPeriod(request?.desired_period ?? 'no_target')
+    setRequestVersion(value => value + 1)
+    setError('')
+    requestDialog.current?.showModal()
+  }
+
+  async function saveRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedNeed) return
+    const data = new FormData(event.currentTarget)
+    const targeted = targetedPeriods.has(requestPeriod)
+    const body = {
+      title: String(data.get('title')).trim(), description: String(data.get('description') ?? '').trim() || null,
+      desired_amount: targeted ? Number(data.get('desired_amount')) : null, desired_period: requestPeriod,
+      custom_period_days: requestPeriod === 'custom' ? Number(data.get('custom_period_days')) : null,
+      confirmed_by_person: selectedNeed.person === 'partner' ? String(data.get('confirmed_by_person')) : 'unknown',
+      active: editingRequest?.active ?? true,
+    }
+    setBusy(true); setError('')
+    try {
+      const path = `/needs/${selectedNeed.id}/requests${editingRequest ? `/${editingRequest.id}` : ''}`
+      await api(path, { method: editingRequest ? 'PUT' : 'POST', body: JSON.stringify(body) })
+      requestDialog.current?.close()
+      setNotice(editingRequest ? 'Specific request updated.' : 'Specific request added.')
+      await load()
+    } catch (err) { setError((err as Error).message) }
+    finally { setBusy(false) }
+  }
+
+  async function toggleRequest(need: Need, request: NeedRequest) {
+    setBusy(true); setError('')
+    try {
+      await api(`/needs/${need.id}/requests/${request.id}/archive`, { method: 'PATCH', body: JSON.stringify({ active: !request.active }) })
+      setNotice(request.active ? 'Specific request archived.' : 'Specific request restored.')
+      await load()
+    } catch (err) { setError((err as Error).message) }
+    finally { setBusy(false) }
+  }
+
   return <section className="section-block needs-section">
     <div className="section-heading"><div><p className="eyebrow">WHAT MATTERS</p><h2>Relationship needs</h2></div><button className="primary-button" disabled={loading || busy} onClick={() => openNeed()}>＋ Add need</button></div>
     <p className="muted needs-intro">Cadence describes what you want, not an obligation or quota.</p>
@@ -144,14 +202,22 @@ export default function Needs({ partnerName, onChanged }: { partnerName: string;
       <div className="need-header"><div><p className="eyebrow">{need.person === 'me' ? 'FOR ME' : `FOR ${partnerName.toUpperCase()}`}</p><h3>{need.name}</h3></div><span className={`importance-pill ${need.importance}`}>{need.importance}</span></div>
       {need.description && <p>{need.description}</p>}
       {need.why_matters && <p className="muted"><strong>Why it matters:</strong> {need.why_matters}</p>}
-      <p className="need-cadence">{cadence(need)}</p>
+      <p className="need-cadence"><span>Broad need cadence:</span> {cadence(need)}</p>
       {need.person === 'partner' && <p className="confirmation-note">{need.confirmed_by_partner === 'yes' ? `Confirmed by ${partnerName}` : need.confirmed_by_partner === 'no' ? `Not confirmed by ${partnerName}` : `Your understanding — not confirmed by ${partnerName}`}</p>}
-      <div className="need-actions"><button className="text-button" disabled={busy} onClick={() => openUpdate(need)}>Add update</button><button className="text-button" disabled={busy} onClick={() => openNeed(need)}>Edit</button><button className="text-button" disabled={busy} onClick={() => void toggleArchive(need)}>{need.active ? 'Archive' : 'Restore'}</button></div>
-      <div className="need-history"><h4>History</h4>{!need.updates.length ? <p className="muted">No updates recorded.</p> : need.updates.map(update => <div className="need-update" key={update.id}>
+      <section className="need-requests"><div className="need-requests-heading"><h4>Specific requests</h4><button className="text-button" disabled={busy || !need.active} onClick={() => openRequest(need)}>＋ Add request</button></div>
+        {!need.requests.length ? <p className="muted">Add concrete ways this broad need could be supported.</p> : <div>{need.requests.map(request => <article className={request.active ? '' : 'archived'} key={request.id}><div><strong>{request.title}</strong><span className="status-pill">{cadence(request)}</span></div>{request.description && <p>{request.description}</p>}{need.person === 'partner' && <small>{request.confirmed_by_person === 'yes' ? `Confirmed by ${partnerName}` : request.confirmed_by_person === 'no' ? `Not confirmed by ${partnerName}` : `Not yet confirmed by ${partnerName}`}</small>}<div className="need-request-actions"><button className="text-button" disabled={busy} onClick={() => openRequest(need, request)}>Edit</button><button className="text-button" disabled={busy} onClick={() => void toggleRequest(need, request)}>{request.active ? 'Archive' : 'Restore'}</button></div></article>)}</div>}
+      </section>
+      <div className="need-actions"><button className="text-button" disabled={busy} onClick={() => openUpdate(need)}>Add update</button><button className="text-button" disabled={busy} onClick={() => openNeed(need)}>Edit broad need</button><button className="text-button" disabled={busy} onClick={() => void toggleArchive(need)}>{need.active ? 'Archive' : 'Restore'}</button></div>
+      <div className="need-history"><h4>History</h4>{!need.updates.length && !linkedEntries.some(entry => entry.need_id === need.id) ? <p className="muted">No updates recorded.</p> : <>
+        {linkedEntries.filter(entry => entry.need_id === need.id).map(entry => { const request = need.requests.find(item => item.id === entry.request_id); return <div className="need-update linked-entry" key={`entry-${entry.id}`}>
+          <div><span className="status-pill">{categoryLabels[entry.category] ?? entry.category}</span><time dateTime={entry.occurred_at}>{new Date(entry.occurred_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>
+          <p>{entry.description}</p>{request && <p className="muted">Specific request: {request.title}</p>}
+        </div> })}
+        {need.updates.map(update => <div className="need-update" key={update.id}>
         <div><span className={`status-pill need-status ${update.status}`}>{labels[update.status]}</span><time dateTime={update.occurred_on}>{new Date(`${update.occurred_on}T00:00:00`).toLocaleDateString(undefined, { dateStyle: 'medium' })}</time></div>
         <p>{update.what_happened}</p><p className="muted">Satisfaction: {update.satisfaction}/5{update.notes ? ` · ${update.notes}` : ''}</p>
         <div className="need-update-actions"><button className="text-button" disabled={busy} onClick={() => openUpdate(need, update)}>Edit</button><button className="text-button danger" disabled={busy} onClick={() => void removeUpdate(need, update)}>Delete</button></div>
-      </div>)}</div>
+      </div>)}</>}</div>
     </article>)}</div>}
 
     <dialog ref={needDialog} className="entry-dialog" aria-labelledby="need-title" onCancel={event => { if (busy) event.preventDefault() }}>
@@ -161,11 +227,23 @@ export default function Needs({ partnerName, onChanged }: { partnerName: string;
         <label>Description (optional)<textarea name="description" rows={3} maxLength={2000} defaultValue={editing?.description ?? ''} /></label>
         <label>Why it matters (optional)<textarea name="why_matters" rows={3} maxLength={2000} defaultValue={editing?.why_matters ?? ''} /></label>
         <label>Importance<select name="importance" defaultValue={editing?.importance ?? 'medium'}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-        <label>Desired period<select value={period} onChange={event => setPeriod(event.target.value as Need['desired_period'])}><option value="no_target">No target</option><option value="as_needed">As needed</option><option value="per_day">Per day</option><option value="per_week">Per week</option><option value="per_month">Per month</option><option value="custom">Custom period</option></select></label>
+        <label>Overall cadence (optional)<select value={period} onChange={event => setPeriod(event.target.value as Need['desired_period'])}><option value="no_target">No overall target</option><option value="as_needed">As needed</option><option value="per_day">Per day</option><option value="per_week">Per week</option><option value="per_month">Per month</option><option value="custom">Custom period</option></select></label>
         {targetedPeriods.has(period) && <label>Desired amount<input name="desired_amount" type="number" min={1} max={1000} required defaultValue={editing?.desired_amount ?? 1} /></label>}
         {period === 'custom' && <label>Number of days in custom period<input name="custom_period_days" type="number" min={1} max={3650} required defaultValue={editing?.custom_period_days ?? 7} /></label>}
+        {targetedPeriods.has(period) && <label className="archive-toggle"><input name="reminders_enabled" type="checkbox" defaultChecked={editing?.reminders_enabled ?? true} /> Allow cadence reminders for this need</label>}
         {person === 'partner' && <label>Has {partnerName} confirmed this?<select name="confirmed_by_partner" defaultValue={editing?.confirmed_by_partner ?? 'unknown'}><option value="unknown">Unknown / not discussed</option><option value="yes">Yes</option><option value="no">No</option></select></label>}
       </fieldset><div className="form-actions"><button type="button" className="text-button" disabled={busy} onClick={() => needDialog.current?.close()}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save need'}</button></div></form>
+    </dialog>
+
+    <dialog ref={requestDialog} className="entry-dialog" aria-labelledby="request-title" onCancel={event => { if (busy) event.preventDefault() }}>
+      <form key={requestVersion} onSubmit={saveRequest}><h2 id="request-title">{editingRequest ? 'Edit specific request' : `Add a request for ${selectedNeed?.name ?? 'this need'}`}</h2><p className="muted">Describe one concrete, consensual way this broad need could be supported. Its cadence is a preference, not an obligation.</p>{error && <p className="auth-warning" role="alert">{error}</p>}<fieldset disabled={busy}>
+        <label>Specific request<input name="title" required maxLength={300} defaultValue={editingRequest?.title ?? ''} placeholder="A foot rub" /></label>
+        <label>Details (optional)<textarea name="description" rows={3} maxLength={2000} defaultValue={editingRequest?.description ?? ''} /></label>
+        <label>Desired period<select value={requestPeriod} onChange={event => setRequestPeriod(event.target.value as NeedRequest['desired_period'])}><option value="no_target">No target</option><option value="as_needed">As needed</option><option value="per_day">Per day</option><option value="per_week">Per week</option><option value="per_month">Per month</option><option value="custom">Custom period</option></select></label>
+        {targetedPeriods.has(requestPeriod) && <label>Desired amount<input name="desired_amount" type="number" min={1} max={1000} required defaultValue={editingRequest?.desired_amount ?? 1} /></label>}
+        {requestPeriod === 'custom' && <label>Number of days in custom period<input name="custom_period_days" type="number" min={1} max={3650} required defaultValue={editingRequest?.custom_period_days ?? 7} /></label>}
+        {selectedNeed?.person === 'partner' && <label>Has {partnerName} confirmed this specific request?<select name="confirmed_by_person" defaultValue={editingRequest?.confirmed_by_person ?? 'unknown'}><option value="unknown">Unknown / not discussed</option><option value="yes">Yes</option><option value="no">No</option></select></label>}
+      </fieldset><div className="form-actions"><button type="button" className="text-button" disabled={busy} onClick={() => requestDialog.current?.close()}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save request'}</button></div></form>
     </dialog>
 
     <dialog ref={updateDialog} className="entry-dialog" aria-labelledby="update-title" onCancel={event => { if (busy) event.preventDefault() }}>

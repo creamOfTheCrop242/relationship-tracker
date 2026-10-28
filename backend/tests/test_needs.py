@@ -121,3 +121,31 @@ class NeedTests(DatabaseTestCase):
         self.session.flush()
         self.assertEqual(self.session.scalars(select(RelationshipNeed)).all(), [])
         self.assertEqual(self.session.scalars(select(NeedUpdate)).all(), [])
+
+    def test_specific_request_lifecycle_validation_and_ownership(self):
+        partner_need = self.client.post('/api/needs', json=self.data | {
+            'person': 'partner', 'name': 'Love and consideration',
+            'confirmed_by_partner': 'yes', 'desired_amount': None, 'desired_period': 'no_target'}).json()
+        request_data = {
+            'title': 'A foot rub', 'description': 'A thoughtful daily gesture',
+            'desired_amount': 1, 'desired_period': 'per_day', 'custom_period_days': None,
+            'confirmed_by_person': 'yes', 'active': True,
+        }
+        created = self.client.post(f"/api/needs/{partner_need['id']}/requests", json=request_data)
+        self.assertEqual(created.status_code, 201, created.text)
+        request_id = created.json()['id']
+        listed = self.client.get('/api/needs').json()[0]
+        self.assertEqual(listed['requests'][0]['title'], 'A foot rub')
+        self.assertEqual(listed['requests'][0]['confirmed_by_person'], 'yes')
+
+        edited = self.client.put(f"/api/needs/{partner_need['id']}/requests/{request_id}", json=request_data | {
+            'title': 'Daily foot rub', 'desired_period': 'per_week', 'desired_amount': 3})
+        self.assertEqual(edited.json()['title'], 'Daily foot rub')
+        self.assertFalse(self.client.patch(f"/api/needs/{partner_need['id']}/requests/{request_id}/archive",
+                                          json={'active': False}).json()['active'])
+
+        invalid = request_data | {'desired_period': 'per_day', 'desired_amount': None}
+        self.assertEqual(self.client.post(f"/api/needs/{partner_need['id']}/requests", json=invalid).status_code, 422)
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[1])
+        self.assertEqual(self.client.put(f"/api/needs/{partner_need['id']}/requests/{request_id}",
+                                         json=request_data).status_code, 404)

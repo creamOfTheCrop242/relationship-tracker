@@ -48,6 +48,44 @@ class JournalTests(DatabaseTestCase):
         self.assertEqual(self.client.get('/api/events').json(), [])
         self.assertEqual(self.client.delete('/api/events/' + event_id).status_code, 404)
 
+    def test_event_can_link_to_owned_need_and_specific_request(self):
+        need_data = {
+            'person': 'partner', 'name': 'Love and consideration', 'description': None,
+            'why_matters': None, 'importance': 'high', 'desired_amount': None,
+            'desired_period': 'no_target', 'custom_period_days': None,
+            'confirmed_by_partner': 'yes', 'active': True, 'reminders_enabled': True,
+        }
+        need = self.client.post('/api/needs', json=need_data).json()
+        request = self.client.post(f"/api/needs/{need['id']}/requests", json={
+            'title': 'Do something thoughtful', 'description': None, 'desired_amount': 1,
+            'desired_period': 'per_day', 'custom_period_days': None,
+            'confirmed_by_person': 'yes', 'active': True,
+        }).json()
+
+        linked = self.client.post('/api/events', json=self.data | {
+            'need_id': need['id'], 'request_id': request['id'],
+        })
+        self.assertEqual(linked.status_code, 201, linked.text)
+        self.assertEqual(linked.json()['need_id'], need['id'])
+        self.assertEqual(linked.json()['request_id'], request['id'])
+
+        unlinked = self.client.put(f"/api/events/{linked.json()['id']}", json=self.data | {
+            'need_id': None, 'request_id': None,
+        })
+        self.assertEqual(unlinked.status_code, 200, unlinked.text)
+        self.assertIsNone(unlinked.json()['need_id'])
+        self.assertIsNone(unlinked.json()['request_id'])
+        self.assertEqual(self.client.post('/api/events', json=self.data | {
+            'need_id': None, 'request_id': request['id'],
+        }).status_code, 422)
+
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[1])
+        other_need = self.client.post('/api/needs', json=need_data | {'name': 'Private need'}).json()
+        self.client.cookies.set(SESSION_COOKIE, self.tokens[0])
+        self.assertEqual(self.client.post('/api/events', json=self.data | {
+            'need_id': other_need['id'], 'request_id': None,
+        }).status_code, 404)
+
     def test_other_user_cannot_list_edit_or_delete(self):
         event_id = self.client.post('/api/events', json=self.data).json()['id']
         self.client.put('/api/relationship', json={'partner_name': 'Alex'})

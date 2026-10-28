@@ -482,6 +482,10 @@ Build adding and editing needs, archiving, desired cadence tracking, dated need 
 
 Relationship needs identify whether the need belongs to the user or reflects the user's understanding of their partner. Partner needs show whether the partner directly confirmed them. Each need supports importance, explanatory context, active or archived status, and either no target, an as-needed cadence, a daily/weekly/monthly target, or a custom number of days. Dated updates record met, partly met, or not met status, what happened, a 1–5 satisfaction rating, optional notes, and editable history. Cadence is presented as a preference rather than an obligation, and missing updates remain unknown.
 
+A broad need can contain multiple specific requests. For example, “love and consideration” can include “a daily foot rub,” while “sexual connection” can include “receive a nude once per day.” Each request has its own cadence, confirmation status, active state, reminders, and generated tasks. When active request cadences exist, reminders follow those concrete requests instead of treating the broad need itself as the requested action.
+
+Each journal entry can optionally link to a broad need and one of that need's specific requests. The timeline shows the association, and a linked entry counts as recorded activity toward the selected request's cadence. Entries remain valid without a need association.
+
 ### Phase 6: Dashboard
 
 Build last-time cards, recent activity, current needs, trend views, low-satisfaction indicators, and the latest reflection.
@@ -506,9 +510,25 @@ The account privacy controls provide a complete JSON export of the signed-in use
 
 Add PWA installation, touch-friendly forms, fast logging, push notifications, reminder controls, task deep links, loading states, accessibility, and offline-friendly drafts.
 
+Progress:
+
+- Installable PWA shell, app icons, standalone display, and offline app loading implemented.
+- Quick-log app shortcuts and category deep links implemented.
+- Journal entry drafts persist on the device and restore after an interruption or lost connection.
+- Offline status, network-aware errors, safe-area layout, touch targets, reduced-motion support, and mobile dialog actions implemented.
+- Persisted relationship tasks support manual actions and cadence or AI sources, with complete, edit, reschedule, snooze, dismiss, and reopen flows.
+- Reminder controls include per-need cadence eligibility, reminder hour, daily, weekly, or monthly AI suggestion frequency, and completed-task logging prompts. At the selected hour, an enabled AI frequency makes a fresh API request using private profiles, active needs and requests, recent events, and recent tasks, then saves one optional action as a task. The prompt excludes requests already covered by automatic cadence and avoids recent task repetition.
+- Web Push subscriptions, hourly delivery, and notification task deep links are implemented. Deployment requires VAPID keys before device notifications can be enabled.
+
 ### Phase 10: Personal testing
 
 Use the app for several weeks to evaluate logging speed, useful categories, needs tracking, score quality, AI reflections, reminders, and missing features.
+
+Personal testing additions:
+
+- Private profiles for the user and partner capture love languages, hobbies, interests, goals, and freeform context.
+- Each profile shows that person's active relationship needs alongside their personal context.
+- Partner profile information remains the user's private understanding unless future partner access explicitly confirms it.
 
 ### Phase 11: Optional partner access
 

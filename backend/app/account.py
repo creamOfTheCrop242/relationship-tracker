@@ -11,8 +11,8 @@ from sqlalchemy.orm import Session
 from .auth import SESSION_COOKIE, STATE_COOKIE
 from .db import get_db
 from .journal import current_user, private_request
-from .models import (AuthAccount, Event, NeedUpdate, Relationship, RelationshipNeed,
-                     RelationshipSummary, User)
+from .models import (AuthAccount, Event, NeedRequest, NeedUpdate, Relationship, RelationshipNeed,
+                     PersonProfile, RelationshipSummary, RelationshipTask, User)
 
 
 router = APIRouter(prefix='/api/account', dependencies=[Depends(private_request)])
@@ -44,13 +44,26 @@ def export_account(user: User = Depends(current_user), db: Session = Depends(get
         updates_by_need: dict = {need.id: [] for need in needs}
         for update in updates:
             updates_by_need.setdefault(update.need_id, []).append(row_dict(update))
+        requests = db.scalars(select(NeedRequest).join(RelationshipNeed).where(
+            RelationshipNeed.relationship_id == relationship.id)
+            .order_by(NeedRequest.created_at, NeedRequest.id)).all()
+        requests_by_need: dict = {need.id: [] for need in needs}
+        for request in requests:
+            requests_by_need.setdefault(request.need_id, []).append(row_dict(request))
         summaries = db.scalars(select(RelationshipSummary).where(
             RelationshipSummary.relationship_id == relationship.id)
             .order_by(RelationshipSummary.period_start, RelationshipSummary.id)).all()
+        tasks = db.scalars(select(RelationshipTask).where(RelationshipTask.relationship_id == relationship.id)
+                           .order_by(RelationshipTask.created_at, RelationshipTask.id)).all()
+        profiles = db.scalars(select(PersonProfile).where(PersonProfile.relationship_id == relationship.id)
+                              .order_by(PersonProfile.person)).all()
         relationship_data = row_dict(relationship) | {
             'events': [row_dict(event) for event in events],
-            'needs': [row_dict(need) | {'updates': updates_by_need.get(need.id, [])} for need in needs],
+            'needs': [row_dict(need) | {'updates': updates_by_need.get(need.id, []),
+                                       'requests': requests_by_need.get(need.id, [])} for need in needs],
             'reflections': [row_dict(summary) for summary in summaries],
+            'tasks': [row_dict(task) for task in tasks],
+            'profiles': [row_dict(profile) for profile in profiles],
         }
     payload = {
         'export_version': 1,

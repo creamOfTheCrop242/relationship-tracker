@@ -27,7 +27,7 @@ const activityLabels: Record<string, string> = { intimacy: 'Intimacy', kindness:
 const statusLabels = { met: 'Met', partly_met: 'Partly met', not_met: 'Not met' }
 
 function eventDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, { dateStyle: 'medium' })
+  return new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 }
 
 function localDay(daysFromToday = 0) {
@@ -42,7 +42,7 @@ function inclusiveEnd(value: string) {
   return day.toISOString().slice(0, 10)
 }
 
-export default function Dashboard({ partnerName, refreshKey, onLog }: { partnerName: string; refreshKey: number; onLog: () => void }) {
+export default function Dashboard({ partnerName, refreshKey }: { partnerName: string; refreshKey: number }) {
   const [data, setData] = useState<DashboardData | null>(null)
   const [settings, setSettings] = useState<AnalysisSettings | null>(null)
   const [reflections, setReflections] = useState<Reflection[]>([])
@@ -125,13 +125,13 @@ export default function Dashboard({ partnerName, refreshKey, onLog }: { partnerN
   const changingNeeds = data?.needs.filter(need => need.trend === 'improving' || need.trend === 'declining') ?? []
 
   return <section className="section-block dashboard-section">
-    <div className="section-heading"><div><p className="eyebrow">AT A GLANCE</p><h2>Your dashboard</h2></div><button className="primary-button" onClick={onLog}>＋ Log something</button></div>
+    <div className="section-heading"><div><p className="eyebrow">AT A GLANCE</p><h2>Your dashboard</h2></div></div>
     {error && <p className="auth-warning" role="alert">{error}</p>}
     {loading ? <p role="status">Loading your dashboard…</p> : data && <>
       <section className="ai-panel" aria-labelledby="ai-reflection-title">
         <div className="ai-panel-heading"><div><p className="eyebrow">PRIVATE AI ANALYSIS</p><h3 id="ai-reflection-title">Relationship reflection</h3></div><label className="analysis-toggle"><input type="checkbox" checked={settings?.enabled ?? false} onChange={event => void toggleAnalysis(event.target.checked)} disabled={aiBusy || (!settings?.available && !settings?.enabled)} /> {settings?.enabled ? 'On' : 'Off'}</label></div>
         {!settings?.available && <p className="auth-warning">AI analysis is not configured on the server yet.</p>}
-        <p className="muted">When enabled, all eligible events and need updates in the selected period are sent securely to OpenAI. Missing days remain unknown.</p>
+        <p className="muted">When enabled, eligible events and need updates are sent securely to OpenAI for reflections. Profiles, active needs, requests, and recent activity may also be used to create your scheduled task suggestion. Missing days remain unknown.</p>
         <p className="save-notice" role="status">{aiNotice}</p>
         {settings?.enabled && settings.available && <form className="reflection-generator" onSubmit={generateReflection}>
           <label>Period<select value={period} onChange={event => setPeriod(event.target.value as Reflection['period_type'])} disabled={aiBusy}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option><option value="yearly">Yearly</option></select></label>

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .db import get_db
 from .journal import current_user, ensure_relationship, private_request
-from .models import NeedUpdate, Relationship, RelationshipNeed, User
+from .models import NeedRequest, NeedUpdate, Relationship, RelationshipNeed, User
 
 
 router = APIRouter(prefix='/api', dependencies=[Depends(private_request)])
@@ -44,6 +44,7 @@ class NeedInput(BaseModel):
     custom_period_days: int | None = Field(default=None, ge=1, le=3650)
     confirmed_by_partner: Literal['yes', 'no', 'unknown'] = 'unknown'
     active: bool = True
+    reminders_enabled: bool = True
 
     @model_validator(mode='after')
     def validate_cadence(self):
@@ -68,6 +69,42 @@ class NeedOutput(NeedInput):
     created_at: datetime
     updated_at: datetime
     updates: list[NeedUpdateOutput] = Field(default_factory=list)
+    requests: list['NeedRequestOutput'] = Field(default_factory=list)
+
+
+class NeedRequestInput(BaseModel):
+    model_config = ConfigDict(str_strip_whitespace=True, extra='forbid')
+    title: str = Field(min_length=1, max_length=300)
+    description: str | None = Field(default=None, max_length=2000)
+    desired_amount: int | None = Field(default=None, ge=1, le=1000)
+    desired_period: Literal['per_day', 'per_week', 'per_month', 'custom', 'as_needed', 'no_target'] = 'no_target'
+    custom_period_days: int | None = Field(default=None, ge=1, le=3650)
+    confirmed_by_person: Literal['yes', 'no', 'unknown'] = 'unknown'
+    active: bool = True
+
+    @model_validator(mode='after')
+    def validate_cadence(self):
+        targeted = self.desired_period in ('per_day', 'per_week', 'per_month', 'custom')
+        if targeted and self.desired_amount is None:
+            raise ValueError('Desired amount is required for a cadence')
+        if not targeted and self.desired_amount is not None:
+            raise ValueError('Desired amount is only allowed for a cadence')
+        if self.desired_period == 'custom' and self.custom_period_days is None:
+            raise ValueError('Custom period days are required')
+        if self.desired_period != 'custom' and self.custom_period_days is not None:
+            raise ValueError('Custom period days are only allowed for a custom cadence')
+        return self
+
+
+class NeedRequestOutput(NeedRequestInput):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    need_id: UUID
+    created_at: datetime
+    updated_at: datetime
+
+
+NeedOutput.model_rebuild()
 
 
 class ArchiveInput(BaseModel):
@@ -76,10 +113,18 @@ class ArchiveInput(BaseModel):
 
 
 def owned_need(need_id: UUID, user: User, db: Session) -> RelationshipNeed:
-    row = db.scalar(select(RelationshipNeed).join(Relationship).options(selectinload(RelationshipNeed.updates)).where(
+    row = db.scalar(select(RelationshipNeed).join(Relationship).options(selectinload(RelationshipNeed.updates), selectinload(RelationshipNeed.requests)).where(
         RelationshipNeed.id == need_id, Relationship.owner_id == user.id))
     if row is None:
         raise HTTPException(404, 'Need not found')
+    return row
+
+
+def owned_request(need_id: UUID, request_id: UUID, user: User, db: Session) -> NeedRequest:
+    row = db.scalar(select(NeedRequest).join(RelationshipNeed).join(Relationship).where(
+        NeedRequest.id == request_id, NeedRequest.need_id == need_id, Relationship.owner_id == user.id))
+    if row is None:
+        raise HTTPException(404, 'Request not found')
     return row
 
 
@@ -96,7 +141,7 @@ def needs(include_archived: bool = Query(False), user: User = Depends(current_us
     filters = [Relationship.owner_id == user.id]
     if not include_archived:
         filters.append(RelationshipNeed.active.is_(True))
-    return db.scalars(select(RelationshipNeed).join(Relationship).options(selectinload(RelationshipNeed.updates))
+    return db.scalars(select(RelationshipNeed).join(Relationship).options(selectinload(RelationshipNeed.updates), selectinload(RelationshipNeed.requests))
                       .where(*filters).order_by(RelationshipNeed.active.desc(), RelationshipNeed.created_at.desc())).all()
 
 
@@ -107,6 +152,7 @@ def create_need(data: NeedInput, user: User = Depends(current_user), db: Session
     db.commit()
     db.refresh(row)
     row.updates
+    row.requests
     return row
 
 
@@ -155,3 +201,41 @@ def delete_need_update(need_id: UUID, update_id: UUID, user: User = Depends(curr
     db.delete(owned_update(need_id, update_id, user, db))
     db.commit()
     return Response(status_code=204, headers={'Cache-Control': 'no-store'})
+
+
+@router.post('/needs/{need_id}/requests', response_model=NeedRequestOutput, status_code=201)
+def create_request(need_id: UUID, data: NeedRequestInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need = owned_need(need_id, user, db)
+    values = data.model_dump()
+    if need.person == 'me':
+        values['confirmed_by_person'] = 'unknown'
+    row = NeedRequest(need_id=need.id, **values)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.put('/needs/{need_id}/requests/{request_id}', response_model=NeedRequestOutput)
+def update_request(need_id: UUID, request_id: UUID, data: NeedRequestInput,
+                   user: User = Depends(current_user), db: Session = Depends(get_db)):
+    need = owned_need(need_id, user, db)
+    row = owned_request(need_id, request_id, user, db)
+    values = data.model_dump()
+    if need.person == 'me':
+        values['confirmed_by_person'] = 'unknown'
+    for key, value in values.items():
+        setattr(row, key, value)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.patch('/needs/{need_id}/requests/{request_id}/archive', response_model=NeedRequestOutput)
+def archive_request(need_id: UUID, request_id: UUID, data: ArchiveInput,
+                    user: User = Depends(current_user), db: Session = Depends(get_db)):
+    row = owned_request(need_id, request_id, user, db)
+    row.active = data.active
+    db.commit()
+    db.refresh(row)
+    return row

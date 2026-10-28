@@ -12,6 +12,8 @@ from .needs import router as needs_router
 from .dashboard import router as dashboard_router
 from .reflections import router as reflections_router
 from .account import router as account_router
+from .tasks import router as tasks_router
+from .profiles import router as profiles_router
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name)
@@ -21,6 +23,8 @@ app.include_router(needs_router)
 app.include_router(dashboard_router)
 app.include_router(reflections_router)
 app.include_router(account_router)
+app.include_router(tasks_router)
+app.include_router(profiles_router)
 
 
 @app.exception_handler(SQLAlchemyError)
@@ -51,7 +55,7 @@ def ready():
     try:
         with get_engine().connect() as connection:
             # Also checks that the initial migration has been applied.
-            for table in ("users", "auth_accounts", "sessions", "relationships", "events", "relationship_needs", "need_updates", "relationship_summaries"):
+            for table in ("users", "auth_accounts", "sessions", "relationships", "events", "relationship_needs", "need_updates", "need_requests", "relationship_summaries", "relationship_tasks", "push_subscriptions", "person_profiles"):
                 connection.execute(text(f"SELECT 1 FROM {table} LIMIT 0"))
         return {"status": "ok", "database": "ready"}
     except (SQLAlchemyError, RuntimeError):

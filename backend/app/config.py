@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-6-astra"
 
+    vapid_public_key: str | None = None
+    vapid_private_key: str | None = None
+    vapid_subject: str = "mailto:admin@example.com"
+
     model_config = SettingsConfigDict(
         env_file=(Path(__file__).resolve().parents[2] / ".env",
                   Path(__file__).resolve().parents[1] / ".env"),

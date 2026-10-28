@@ -33,6 +33,11 @@ def already_generated(db: Session, user_id, period_type: PeriodType, anchor: dat
 
 
 def run():
+    from .reminder_jobs import run as run_reminders
+    try:
+        run_reminders()
+    except Exception:
+        print('Reminder job failed; continuing with AI reflections')
     settings = get_settings()
     if not settings.openai_api_key:
         print('AI reflections skipped: OPENAI_API_KEY is not configured')

@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from .auth import SESSION_COOKIE, token_hash
 from .config import get_settings
 from .db import get_db
-from .models import Event, Relationship, User, UserSession
+from .models import Event, NeedRequest, Relationship, RelationshipNeed, User, UserSession
 
 
 def current_user(request: Request, db: Session = Depends(get_db)) -> User:
@@ -110,6 +110,8 @@ class EventInput(BaseModel):
     impact: str | None = Field(default=None, max_length=200)
     notes: str | None = Field(default=None, max_length=10000)
     details: dict = Field(default_factory=dict)
+    need_id: UUID | None = None
+    request_id: UUID | None = None
 
     @model_validator(mode='after')
     def validate_details(self):
@@ -179,7 +181,9 @@ def events(limit: int = Query(50, ge=1, le=100), offset: int = Query(0, ge=0),
 
 @router.post('/events', response_model=EventOutput, status_code=201)
 def create_event(data: EventInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
-    row = Event(relationship_id=ensure_relationship(db, user).id, **data.model_dump())
+    relationship = ensure_relationship(db, user)
+    validate_event_links(data, relationship, db)
+    row = Event(relationship_id=relationship.id, **data.model_dump())
     db.add(row)
     db.commit()
     db.refresh(row)
@@ -193,9 +197,27 @@ def owned_event(event_id: UUID, user: User, db: Session) -> Event:
     return row
 
 
+def validate_event_links(data: EventInput, relationship: Relationship, db: Session):
+    if data.request_id is not None and data.need_id is None:
+        raise HTTPException(422, 'A specific request must include its broad need')
+    if data.need_id is None:
+        return
+    need = db.scalar(select(RelationshipNeed).where(
+        RelationshipNeed.id == data.need_id, RelationshipNeed.relationship_id == relationship.id))
+    if need is None:
+        raise HTTPException(404, 'Need not found')
+    if data.request_id is not None:
+        request = db.scalar(select(NeedRequest).where(
+            NeedRequest.id == data.request_id, NeedRequest.need_id == need.id))
+        if request is None:
+            raise HTTPException(404, 'Specific request not found')
+
+
 @router.put('/events/{event_id}', response_model=EventOutput)
 def update_event(event_id: UUID, data: EventInput, user: User = Depends(current_user), db: Session = Depends(get_db)):
     row = owned_event(event_id, user, db)
+    relationship = db.get(Relationship, row.relationship_id)
+    validate_event_links(data, relationship, db)
     for key, value in data.model_dump().items():
         setattr(row, key, value)
     db.commit()

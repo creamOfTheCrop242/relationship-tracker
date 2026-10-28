@@ -3,15 +3,35 @@ import type { FormEvent } from 'react'
 import { api } from './api'
 import Dashboard from './Dashboard'
 import Needs from './Needs'
+import PwaControls from './PwaControls'
+import Tasks from './Tasks'
 
 const categories = { intimacy: 'Intimacy', kindness: 'Kindness', conflict: 'Conflict', outing: 'Outing', alcohol: 'Alcohol', childcare: 'Childcare', custom: 'Custom' }
 type Category = keyof typeof categories
 type DetailValue = string | number | boolean
-type Entry = { id: string; category: Category; description: string; occurred_at: string; person: string | null; mood: string | null; impact: string | null; notes: string | null; details: Record<string, DetailValue> }
+type Entry = { id: string; category: Category; description: string; occurred_at: string; person: string | null; mood: string | null; impact: string | null; notes: string | null; details: Record<string, DetailValue>; need_id: string | null; request_id: string | null }
 type Relationship = { id: string; partner_name: string }
 type Filters = { q: string; category: '' | Category; person: string; from: string; to: string }
+type EntryDraft = { category: Category; values: Record<string, string>; savedAt: string }
+type LinkRequest = { id: string; title: string; active: boolean }
+type LinkNeed = { id: string; person: 'me' | 'partner'; name: string; active: boolean; requests: LinkRequest[] }
 
 const emptyFilters: Filters = { q: '', category: '', person: '', from: '', to: '' }
+const DRAFT_KEY = 'relationship-tracker-entry-draft-v1'
+
+export function clearEntryDraft() {
+  localStorage.removeItem(DRAFT_KEY)
+}
+
+function readEntryDraft(): EntryDraft | null {
+  try {
+    const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) ?? 'null') as EntryDraft | null
+    return draft && draft.category in categories && draft.values && typeof draft.values === 'object' ? draft : null
+  } catch {
+    clearEntryDraft()
+    return null
+  }
+}
 
 const titleCase = (value: DetailValue) => String(value).replaceAll('_', ' ').replace(/\b\w/g, letter => letter.toUpperCase())
 
@@ -103,9 +123,10 @@ function eventPath(filters: Filters, offset = 0) {
   return `/events?${params}`
 }
 
-export default function Journal({ name, signOut, onAccountDeleted }: { name: string; signOut: () => void; onAccountDeleted: () => void }) {
+export default function Journal({ name, signOut, onProfiles, onAccountDeleted }: { name: string; signOut: () => void; onProfiles: () => void; onAccountDeleted: () => void }) {
   const [relationship, setRelationship] = useState<Relationship | null>(null)
   const [entries, setEntries] = useState<Entry[]>([])
+  const [linkNeeds, setLinkNeeds] = useState<LinkNeed[]>([])
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -113,8 +134,12 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
   const [hasMore, setHasMore] = useState(false)
   const [editing, setEditing] = useState<Entry | null>(null)
   const [category, setCategory] = useState<Category>('kindness')
+  const [linkedNeedId, setLinkedNeedId] = useState('')
+  const [linkedRequestId, setLinkedRequestId] = useState('')
   const [partner, setPartner] = useState('')
   const [formError, setFormError] = useState('')
+  const [draft, setDraft] = useState<EntryDraft | null>(null)
+  const [draftNotice, setDraftNotice] = useState('')
   const [formVersion, setFormVersion] = useState(0)
   const [filterDraft, setFilterDraft] = useState<Filters>(emptyFilters)
   const [appliedFilters, setAppliedFilters] = useState<Filters>(emptyFilters)
@@ -122,6 +147,7 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
   const [deleteConfirmation, setDeleteConfirmation] = useState('')
   const [accountError, setAccountError] = useState('')
   const dialog = useRef<HTMLDialogElement>(null)
+  const entryForm = useRef<HTMLFormElement>(null)
   const accountDialog = useRef<HTMLDialogElement>(null)
 
   async function replaceEntries(filters: Filters) {
@@ -134,24 +160,57 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
     setLoading(true)
     setError('')
     try {
-      const [rel, rows] = await Promise.all([api<Relationship | null>('/relationship'), api<Entry[]>(eventPath(appliedFilters))])
+      const [rel, rows, needs] = await Promise.all([api<Relationship | null>('/relationship'), api<Entry[]>(eventPath(appliedFilters)), api<LinkNeed[]>('/needs?include_archived=true')])
       setRelationship(rel)
       setPartner(rel?.partner_name === 'Partner' ? '' : rel?.partner_name ?? '')
       setEntries(rows)
+      setLinkNeeds(needs)
       setHasMore(rows.length === 50)
     } catch (err) { setError((err as Error).message) }
     finally { setLoading(false) }
   }
   useEffect(() => { void load() }, [])
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const quickLog = params.get('quickLog')
+    if (!quickLog || !(quickLog in categories)) return
+    params.delete('quickLog')
+    window.history.replaceState({}, '', `${window.location.pathname}${params.size ? `?${params}` : ''}${window.location.hash}`)
+    openForm(quickLog as Category)
+  }, [])
+
   function openForm(selected: Category, entry: Entry | null = null) {
+    const savedDraft = entry ? null : readEntryDraft()
     setEditing(entry)
+    setDraft(savedDraft)
     setFormVersion(version => version + 1)
-    setCategory(selected)
+    setCategory(savedDraft?.category ?? selected)
+    setLinkedNeedId(savedDraft?.values.need_id ?? entry?.need_id ?? '')
+    setLinkedRequestId(savedDraft?.values.request_id ?? entry?.request_id ?? '')
+    setDraftNotice(savedDraft ? 'Draft restored from this device.' : '')
     setFormError('')
     setNotice('')
     dialog.current?.showModal()
   }
+
+  function saveDraft() {
+    if (editing || !entryForm.current) return
+    const data = new FormData(entryForm.current)
+    const values = Object.fromEntries([...data.entries()].filter(([, value]) => typeof value === 'string').map(([key, value]) => [key, String(value)]))
+    const selected = String(data.get('category') ?? category) as Category
+    const next = { category: selected in categories ? selected : category, values, savedAt: new Date().toISOString() }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(next))
+    setDraft(next)
+    setDraftNotice('Draft saved on this device.')
+  }
+
+  function scheduleDraftSave() {
+    window.setTimeout(saveDraft, 0)
+  }
+
+  const draftValue = (name: string, fallback = '') => editing ? fallback : draft?.values[name] ?? fallback
+  const draftDetails = Object.fromEntries(Object.entries(draft?.values ?? {}).filter(([key]) => key.startsWith('detail_')).map(([key, value]) => [key.slice(7), value]))
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -160,8 +219,11 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
     setBusy(true)
     setFormError('')
     try {
-      const body = { category, description: String(data.get('description')).trim(), occurred_at: new Date(String(data.get('occurred_at'))).toISOString(), person: optional('person'), mood: optional('mood'), impact: optional('impact'), notes: optional('notes'), details: readDetails(category, data) }
+      const body = { category, description: String(data.get('description')).trim(), occurred_at: new Date(String(data.get('occurred_at'))).toISOString(), person: optional('person'), mood: optional('mood'), impact: optional('impact'), notes: optional('notes'), details: readDetails(category, data), need_id: optional('need_id'), request_id: optional('request_id') }
       await api(editing ? `/events/${editing.id}` : '/events', { method: editing ? 'PUT' : 'POST', body: JSON.stringify(body) })
+      if (!editing) clearEntryDraft()
+      setDraft(null)
+      setDraftNotice('')
       dialog.current?.close()
       setNotice(editing ? 'Entry updated.' : 'Entry saved.')
       await replaceEntries(appliedFilters)
@@ -258,6 +320,7 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
     setAccountError('')
     try {
       await api('/account', { method: 'DELETE', body: JSON.stringify({ confirmation: deleteConfirmation }) })
+      clearEntryDraft()
       accountDialog.current?.close()
       onAccountDeleted()
     } catch (err) { setAccountError((err as Error).message) }
@@ -265,18 +328,25 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
   }
 
   const filtersActive = Object.values(appliedFilters).some(Boolean)
+  const selectedLinkNeed = linkNeeds.find(need => need.id === linkedNeedId)
+  const validLinkedRequestId = selectedLinkNeed?.requests.some(request => request.id === linkedRequestId) ? linkedRequestId : ''
+  const linkLabel = (entry: Entry) => {
+    const need = linkNeeds.find(item => item.id === entry.need_id)
+    const request = need?.requests.find(item => item.id === entry.request_id)
+    return need ? `${need.name}${request ? ` · ${request.title}` : ''}` : null
+  }
 
-  return <main className="app-shell">
+  return <><PwaControls /><main className="app-shell">
     <header className="topbar">
       <div className="brand-mark" aria-hidden="true">r</div>
       <div><p className="eyebrow">PRIVATE JOURNAL</p><h1>Our Notes</h1></div>
-      <button className="text-button" onClick={signOut} disabled={busy}>Sign out</button>
+      <div className="topbar-links"><button className="text-button" onClick={onProfiles} disabled={busy}>Profiles</button><button className="text-button" onClick={signOut} disabled={busy}>Sign out</button></div>
     </header>
     <section className="welcome-row">
       <div><p className="eyebrow">YOU AND {(relationship?.partner_name ?? 'Partner').toUpperCase()}</p><h2>Welcome, {name}</h2><p className="muted">Notice what happened. Remember what matters.</p></div>
       <button className="primary-button" disabled={loading || busy} onClick={() => openForm('kindness')}>＋ Log something</button>
     </section>
-    <Dashboard partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} onLog={() => openForm('kindness')} />
+    <Dashboard partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} />
     {error && <div className="auth-warning" role="alert">{error} <button className="text-button" disabled={busy || loading} onClick={() => void load()}>Retry</button></div>}
     <p className="save-notice" role="status">{notice}</p>
     <details className="partner-settings"><summary>Partner name (optional)</summary>
@@ -309,6 +379,7 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
       {loading ? <p role="status">Loading your entries…</p> : !entries.length && !error ? <div className="empty-state"><span className="empty-icon">✦</span><p>{filtersActive ? 'No entries match these filters.' : 'Your first entry will start your timeline.'}</p></div> : <div className="timeline">{entries.map(entry => <article className="entry-card" key={entry.id}>
         <div className="entry-meta"><span className="status-pill">{categories[entry.category]}</span><time dateTime={entry.occurred_at}>{new Date(entry.occurred_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</time></div>
         <h3>{entry.description}</h3>
+        {linkLabel(entry) && <p className="muted">Supports: {linkLabel(entry)}</p>}
         {entry.person && <p className="muted">Involved: {entry.person === 'partner' ? relationship?.partner_name ?? 'Partner' : entry.person}</p>}
         {entry.mood && <p>Mood: {entry.mood}</p>}{entry.impact && <p>Impact: {entry.impact}</p>}
         {!!detailRows(entry, relationship?.partner_name ?? 'Partner').length && <dl className="entry-details">{detailRows(entry, relationship?.partner_name ?? 'Partner').map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
@@ -317,21 +388,25 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
       </article>)}</div>}
       {hasMore && !loading && <button className="primary-button load-more" disabled={busy} onClick={() => void loadMore()}>{busy ? 'Loading…' : 'Load older entries'}</button>}
     </section>
-    <Needs partnerName={relationship?.partner_name ?? 'Partner'} onChanged={() => setDashboardVersion(value => value + 1)} />
+    <Needs partnerName={relationship?.partner_name ?? 'Partner'} refreshKey={dashboardVersion} onChanged={() => { setDashboardVersion(value => value + 1); void api<LinkNeed[]>('/needs?include_archived=true').then(setLinkNeeds) }} />
+    <Tasks onLog={() => openForm('kindness')} />
     <dialog ref={dialog} className="entry-dialog" aria-labelledby="entry-title" onCancel={event => { if (busy) event.preventDefault() }}>
-      <form key={formVersion} onSubmit={save}>
+      <form key={formVersion} ref={entryForm} onSubmit={save} onInput={scheduleDraftSave}>
         <h2 id="entry-title">{editing ? 'Edit entry' : 'Log a moment'}</h2>
         <p className="muted">A few words are enough. All times are in your device’s timezone.</p>
         {formError && <p className="auth-warning" role="alert">{formError}</p>}
+        {!editing && draftNotice && <p className="draft-notice" role="status">{draftNotice}</p>}
         <fieldset disabled={busy}>
-          <label>Category<select value={category} onChange={e => setCategory(e.target.value as Category)}>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <label>When<input name="occurred_at" type="datetime-local" required defaultValue={localDate(editing?.occurred_at)} /></label>
-          <label>What happened?<input name="description" required maxLength={500} defaultValue={editing?.description ?? ''} placeholder="A walk together, a kind word, a difficult conversation…" /></label>
-          <label>Who was involved? (optional)<select name="person" defaultValue={editing?.person ?? ''}><option value="">Not specified</option><option value="me">Me</option><option value="partner">{relationship?.partner_name ?? 'Partner'}</option><option value="both">Both</option><option value="neither">Neither</option></select></label>
-          <CategoryFields key={category} category={category} details={editing?.category === category ? editing.details ?? {} : {}} partnerName={relationship?.partner_name ?? 'Partner'} />
-          <label>Mood (optional)<input name="mood" maxLength={100} defaultValue={editing?.mood ?? ''} /></label>
-          <label>Impact (optional)<input name="impact" maxLength={200} defaultValue={editing?.impact ?? ''} /></label>
-          <label>Notes (optional)<textarea name="notes" rows={4} maxLength={10000} defaultValue={editing?.notes ?? ''} /></label>
+          <label>Category<select name="category" value={category} onChange={e => setCategory(e.target.value as Category)}>{Object.entries(categories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+          <label>When<input name="occurred_at" type="datetime-local" required defaultValue={draftValue('occurred_at', localDate(editing?.occurred_at))} /></label>
+          <label>What happened?<input name="description" required maxLength={500} defaultValue={draftValue('description', editing?.description ?? '')} placeholder="A walk together, a kind word, a difficult conversation…" /></label>
+          <label>Who was involved? (optional)<select name="person" defaultValue={draftValue('person', editing?.person ?? '')}><option value="">Not specified</option><option value="me">Me</option><option value="partner">{relationship?.partner_name ?? 'Partner'}</option><option value="both">Both</option><option value="neither">Neither</option></select></label>
+          <label>Related broad need (optional)<select name="need_id" value={linkedNeedId} onChange={event => { setLinkedNeedId(event.target.value); setLinkedRequestId('') }}><option value="">No related need</option>{linkNeeds.filter(need => need.active || need.id === linkedNeedId).map(need => <option key={need.id} value={need.id}>{need.name} · {need.person === 'me' ? 'Mine' : relationship?.partner_name ?? 'Partner'}</option>)}</select></label>
+          {selectedLinkNeed && <label>Specific request (optional)<select key={selectedLinkNeed.id} name="request_id" value={validLinkedRequestId} onChange={event => setLinkedRequestId(event.target.value)}><option value="">Broad need only</option>{selectedLinkNeed.requests.filter(request => request.active || request.id === linkedRequestId).map(request => <option key={request.id} value={request.id}>{request.title}</option>)}</select><small>Linking this entry counts as recorded activity toward the request’s cadence.</small></label>}
+          <CategoryFields key={category} category={category} details={editing?.category === category ? editing.details ?? {} : draftDetails} partnerName={relationship?.partner_name ?? 'Partner'} />
+          <label>Mood (optional)<input name="mood" maxLength={100} defaultValue={draftValue('mood', editing?.mood ?? '')} /></label>
+          <label>Impact (optional)<input name="impact" maxLength={200} defaultValue={draftValue('impact', editing?.impact ?? '')} /></label>
+          <label>Notes (optional)<textarea name="notes" rows={4} maxLength={10000} defaultValue={draftValue('notes', editing?.notes ?? '')} /></label>
         </fieldset>
         <div className="form-actions"><button type="button" className="text-button" disabled={busy} onClick={() => dialog.current?.close()}>Cancel</button><button className="primary-button" disabled={busy}>{busy ? 'Saving…' : 'Save entry'}</button></div>
       </form>
@@ -346,5 +421,5 @@ export default function Journal({ name, signOut, onAccountDeleted }: { name: str
         <div className="form-actions"><button type="button" className="text-button" disabled={busy} onClick={() => accountDialog.current?.close()}>Cancel</button><button className="primary-button destructive-button" disabled={busy || deleteConfirmation !== 'DELETE'}>{busy ? 'Deleting…' : 'Permanently delete'}</button></div>
       </form>
     </dialog>
-  </main>
+  </main></>
 }
